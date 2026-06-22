@@ -298,14 +298,12 @@ function trazarRutaInteligente(inicioGPS, finGPS) {
     if (!caminoEncontrado) {
         const [endLng, endLat] = endId.split(',').map(Number);
         pathCoords.push({lat: endLat, lng: endLng});
-        console.warn("Se utilizó un puente de aproximación inteligente para sortear una zona desconectada.");
     }
     
     pathCoords.push(finGPS);
 
     dibujarLineaEnMapa(pathCoords.map(pt => [pt.lat, pt.lng]));
 }
-
 
 // =======================================================
 // 6. FUNCIONES AUXILIARES Y DIBUJO
@@ -339,6 +337,34 @@ window.enfocarUsuario = function() {
 // =======================================================
 // 7. FILTROS, BRÚJULA Y ROTACIÓN AUTOMÁTICA DEL MAPA
 // =======================================================
+
+// --- Variables para control de Rotación Matemática ---
+let anguloObjetivo = null; // El ángulo crudo del sensor
+let anguloActual = 0;      // El ángulo suavizado y filtrado
+let modoAutoRotacion = false; 
+
+// Notificación dinámica (Toast Inyectado por JS)
+function mostrarNotificacion(mensaje) {
+    let toast = document.getElementById('toast-giroscopio');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast-giroscopio';
+        toast.className = 'shadow-lg';
+        toast.style.cssText = 'position: fixed; top: 100px; left: 50%; transform: translateX(-50%) scale(0.95); background-color: #0d6efd; color: white; padding: 10px 20px; border-radius: 30px; font-weight: 600; font-size: 14px; z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.4s ease, transform 0.4s ease; display: flex; align-items: center; gap: 8px;';
+        document.body.appendChild(toast);
+    }
+    
+    toast.innerHTML = `<i class="bi bi-compass-fill"></i> ${mensaje}`;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) scale(1)';
+
+    clearTimeout(window.toastTimer);
+    window.toastTimer = setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) scale(0.95)';
+    }, 3000);
+}
+
 const chkEvitarPistas = document.getElementById('chkEvitarPistas');
 if (chkEvitarPistas) {
     chkEvitarPistas.addEventListener('change', function(e) {
@@ -354,9 +380,6 @@ if (chkEvitarPistas) {
     });
 }
 
-let anguloActual = 0;
-let modoAutoRotacion = false; // [NUEVO] Estado de la cámara Waze
-
 document.addEventListener('DOMContentLoaded', () => {
     const btnEnfoque = document.getElementById('btnEnfocarGps');
     if (btnEnfoque && window.map) {
@@ -364,33 +387,37 @@ document.addEventListener('DOMContentLoaded', () => {
         btnEnfoque.addEventListener('click', () => { window.enfocarUsuario(); inicializarBrujula(); });
     }
 
-    // [NUEVO] Control del botón de Brújula (Efecto de pulsación rápida)
     const btnBrujula = document.getElementById('btnBrujula');
     if (btnBrujula) {
         btnBrujula.addEventListener('click', () => {
-            // 1. Efecto visual: Se pone azul al instante de presionarlo
-            btnBrujula.classList.remove('bg-white');
-            btnBrujula.classList.add('bg-primary');
-            btnBrujula.innerHTML = '<i class="bi bi-compass fs-4 text-white"></i>';
+            modoAutoRotacion = !modoAutoRotacion;
             
-            // 2. Regresa a blanco después de 200ms (dando la sensación de un clic físico)
-            setTimeout(() => {
+            if (modoAutoRotacion) {
+                // MANTENER AZUL
+                btnBrujula.classList.remove('bg-white');
+                btnBrujula.classList.add('bg-primary');
+                btnBrujula.innerHTML = '<i class="bi bi-compass-fill fs-4 text-white"></i>';
+                
+                mostrarNotificacion("Utilizando giroscopio");
+                
+                if (window.map && window.map.setBearing) {
+                    window.map.setBearing(anguloActual);
+                }
+            } else {
+                // REGRESAR A BLANCO
                 btnBrujula.classList.remove('bg-primary');
                 btnBrujula.classList.add('bg-white');
                 btnBrujula.innerHTML = '<i class="bi bi-compass fs-4 text-dark"></i>';
-            }, 200);
-
-            // 3. Lógica interna: Activar rotación o regresar el mapa al Norte (0 grados)
-            modoAutoRotacion = !modoAutoRotacion;
-            if (modoAutoRotacion) {
-                if (window.map && window.map.setBearing) window.map.setBearing(anguloActual);
-            } else {
-                if (window.map && window.map.setBearing) window.map.setBearing(0);
+                
+                if (window.map && window.map.setBearing) {
+                    window.map.setBearing(0);
+                }
             }
         });
     }
 
     inicializarBrujula();
+    requestAnimationFrame(bucleSuavizadoGiroscopio); // Iniciar el motor matemático
 });
 
 function inicializarBrujula() {
@@ -404,29 +431,63 @@ function escucharOrientacion() {
     window.addEventListener('deviceorientation', handlerOrientacion, true);
 }
 
+// Recibe la señal pura pero NO actualiza el mapa, solo actualiza el objetivo
 function handlerOrientacion(event) {
     let heading = event.webkitCompassHeading ? event.webkitCompassHeading : (event.alpha !== null ? 360 - event.alpha : null);
     if (heading !== null) {
-        anguloActual = heading;
-        actualizarRotacionIcono();
-
-        // [NUEVO] Si el modo Waze está activo, girar todo el mapa
-        if (modoAutoRotacion && window.map && window.map.setBearing) {
-            window.map.setBearing(anguloActual);
-        }
+        if (anguloObjetivo === null) anguloActual = heading; // El primer golpe es instantáneo
+        anguloObjetivo = heading;
     }
 }
 
-function actualizarRotacionIcono() {
+// Bucle hiperfluido (60 fps) que filtra el ruido del giroscopio
+let ultimoAnguloRenderizado = -1;
+
+function bucleSuavizadoGiroscopio() {
+    if (anguloObjetivo !== null) {
+        let diferencia = anguloObjetivo - anguloActual;
+
+        // Regla matemática para no dar giros completos cuando pasa del grado 359 al grado 1
+        while (diferencia > 180) diferencia -= 360;
+        while (diferencia < -180) diferencia += 360;
+
+        // ZONA MUERTA: Si el temblor es menor a 0.5 grados, lo ignoramos por completo
+        if (Math.abs(diferencia) > 0.5) {
+            
+            // Factor 0.08: Se mueve el 8% de la distancia por fotograma (súper fluido y "pesado")
+            anguloActual += diferencia * 0.08; 
+            
+            if (anguloActual < 0) anguloActual += 360;
+            if (anguloActual >= 360) anguloActual -= 360;
+            
+            // Redondear a 1 decimal salva muchísimo procesamiento de la tarjeta gráfica
+            let anguloFinal = Math.round(anguloActual * 10) / 10;
+
+            if (anguloFinal !== ultimoAnguloRenderizado) {
+                actualizarRotacionIcono(anguloFinal);
+                
+                if (modoAutoRotacion && window.map && window.map.setBearing) {
+                    window.map.setBearing(anguloFinal);
+                }
+                ultimoAnguloRenderizado = anguloFinal;
+            }
+        }
+    }
+    requestAnimationFrame(bucleSuavizadoGiroscopio);
+}
+
+function actualizarRotacionIcono(angulo) {
     const miMarcador = marcadores[socket.id];
     if (miMarcador && miMarcador._icon) {
         const currentTransform = miMarcador._icon.style.transform;
         if (!currentTransform) return;
         const baseTransform = currentTransform.replace(/ rotateZ\([^)]+\)/g, '');
-        miMarcador._icon.style.transform = `${baseTransform} rotateZ(${anguloActual}deg)`;
-        miMarcador._icon.style.transition = 'transform 0.15s ease-out';
+        // El movimiento ya es fluido por la matemática en JS, quitamos las transiciones de CSS para no duplicar el trabajo
+        miMarcador._icon.style.transition = 'none'; 
+        miMarcador._icon.style.transform = `${baseTransform} rotateZ(${angulo}deg)`;
     }
 }
+
 // =======================================================
 // 8. OPTIMIZADOR DE RENDIMIENTO VISUAL (ANTI-LAG)
 // =======================================================
@@ -435,26 +496,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const mapaDOM = document.getElementById('map');
         let temporizadorMovimiento;
 
-        // Función que apaga los textos temporalmente
         function activarModoMovimiento() {
             mapaDOM.classList.add('mapa-en-movimiento');
             clearTimeout(temporizadorMovimiento);
         }
 
-        // Función que vuelve a encender los textos tras detenerse
         function desactivarModoMovimiento() {
-            // Le damos 200ms extra para asegurar que el giro físico ya terminó
             temporizadorMovimiento = setTimeout(() => {
                 mapaDOM.classList.remove('mapa-en-movimiento');
             }, 200); 
         }
 
-        // Escuchamos cuándo el usuario toca el mapa para rotar o mover
         window.map.on('rotatestart', activarModoMovimiento);
         window.map.on('dragstart', activarModoMovimiento);
         window.map.on('zoomstart', activarModoMovimiento);
 
-        // Escuchamos cuándo el usuario suelta la pantalla
         window.map.on('rotateend', desactivarModoMovimiento);
         window.map.on('dragend', desactivarModoMovimiento);
         window.map.on('zoomend', desactivarModoMovimiento);
