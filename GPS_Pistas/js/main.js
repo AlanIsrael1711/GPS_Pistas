@@ -390,7 +390,7 @@ function mostrarNotificacion(mensaje) {
     window.toastTimer = setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateX(-50%) scale(0.95)';
-    }, 3000);
+    }, 1500); // [MODIFICADO] Duración a 1.5 segundos (1500 ms)
 }
 
 const chkEvitarPistas = document.getElementById('chkEvitarPistas');
@@ -484,27 +484,27 @@ function bucleSuavizadoYRotacion() {
         while (diferencia > 180) diferencia -= 360;
         while (diferencia < -180) diferencia += 360;
 
-        // 1. FILTRO SÚPER DENSO: Solo nos movemos un 2% de la distancia por frame.
-        // Esto ignora virtualmente cualquier temblor rápido de tu mano.
-        anguloSuavizado += diferencia * 0.02; 
+        // 1. FILTRO SÚPER DENSO: 1.5% de la distancia por frame. Extrañamente lento para estabilizar perfecto.
+        anguloSuavizado += diferencia * 0.015; 
         
         if (anguloSuavizado < 0) anguloSuavizado += 360;
         if (anguloSuavizado >= 360) anguloSuavizado -= 360;
         
-        let anguloFinal = Math.round(anguloSuavizado);
+        // [MODIFICADO] Eliminamos el redondeo (Math.round) para que Leaflet use decimales precisos.
+        // Esto elimina por completo el "tartamudeo" o "escalones" al rotar el mapa entero.
+        let anguloFinal = parseFloat(anguloSuavizado.toFixed(2));
 
-        // 2. ZONA MUERTA VISUAL: 
-        // Solo enviamos órdenes a Leaflet si el ángulo suavizado se ha movido al menos 2 grados reales.
-        // Esto evita que Leaflet se trabe tratando de girar 0.1 grados a cada rato.
+        // 2. ZONA MUERTA VISUAL: Solo actualizamos el mapa si se ha movido al menos 0.1 grados.
+        // Previene la sobrecarga gráfica de actualizar si el teléfono está en reposo.
         let difRender = anguloFinal - ultimoAnguloRenderizado;
         while (difRender > 180) difRender -= 360;
         while (difRender < -180) difRender += 360;
 
-        if (Math.abs(difRender) >= 2 || ultimoAnguloRenderizado === -1) {
+        if (Math.abs(difRender) >= 0.1 || ultimoAnguloRenderizado === -1) {
             ultimoAnguloRenderizado = anguloFinal;
 
             if (modoAutoRotacion && window.map && window.map.setBearing) {
-                // Modo Waze: Gira el mapa, el cono mira fijo hacia "Arriba"
+                // Modo Waze: Gira el mapa de forma fluida continua.
                 window.map.setBearing(anguloFinal);
                 actualizarRotacionIcono(0);
             } else {
