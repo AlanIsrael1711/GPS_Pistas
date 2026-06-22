@@ -572,7 +572,7 @@ function actualizarRotacionIcono(angulo) {
             const bearingMapa = (window.map && typeof window.map.getBearing === 'function')
                 ? window.map.getBearing()
                 : 0;
-            const anguloFinal = ((angulo - bearingMapa) % 360 + 360) % 360;
+            const anguloFinal = ((angulo + bearingMapa) % 360 + 360) % 360;
             svgElement.style.transform = `rotateZ(${anguloFinal}deg)`;
         }
     }
