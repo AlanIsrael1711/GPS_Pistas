@@ -11,11 +11,10 @@ let marcador = null;
 // =======================================================
 // [NUEVO] ICONO DEL USUARIO (Estilo Google Maps con Cono)
 // =======================================================
-// SVG de un punto azul con un cono de dirección apuntando hacia arriba (Norte relativo)
 const iconoUsuarioConoSVG = `
 <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
   <!-- Cono de visión (apuntando hacia arriba) -->
-  <path d="M 20 20 L 5 0 A 20 20 0 0 1 35 0 Z" fill="rgba(37, 99, 235, 0.3)" />
+  <path d="M 20 20 L 5 0 A 20 20 0 0 1 35 0 Z" fill="rgba(37, 99, 235, 0.35)" />
   <!-- Borde blanco del punto -->
   <circle cx="20" cy="20" r="8" fill="white" />
   <!-- Punto azul central -->
@@ -27,15 +26,13 @@ const iconoUsuarioGoogleMaps = L.divIcon({
     className: 'marcador-usuario-direccion',
     html: iconoUsuarioConoSVG,
     iconSize: [40, 40],
-    iconAnchor: [20, 20] // El centro exacto del punto azul
+    iconAnchor: [20, 20] 
 });
 
-// Aseguramos que el CSS para el icono no tenga transiciones que estorben
 const styleIcono = document.createElement('style');
 styleIcono.innerHTML = `
     .marcador-usuario-direccion {
-        /* Transición hiper-rápida solo para el giro del cono en modo libre */
-        transition: transform 0.05s linear !important;
+        transition: transform 0.1s linear !important;
     }
 `;
 document.head.appendChild(styleIcono);
@@ -121,7 +118,6 @@ socket.on('dibujar-ubicacion', (data) => {
             trazarRutaInteligente(marcadores[id].getLatLng(), marcador.getLatLng());
         }
     } else {
-        // [MODIFICADO] Asignar siempre el nuevo icono con cono al usuario local
         const iconoDestino = (window.iconos && window.iconos.destinoTemporal) ? window.iconos.destinoTemporal : new L.Icon.Default();
         const iconoAsignar = (id === socket.id) ? iconoUsuarioGoogleMaps : iconoDestino;
         
@@ -364,14 +360,17 @@ window.enfocarUsuario = function() {
 };
 
 // =======================================================
-// 7. FILTROS, BRÚJULA Y ROTACIÓN AUTOMÁTICA DEL MAPA
+// 7. FILTROS, BRÚJULA ULTRA-ESTABLE Y ROTACIÓN AUTOMÁTICA
 // =======================================================
 
-// --- Variables Matemáticas para Orientación ---
-let anguloCrudo = null;    // Valor directo del sensor
-let anguloSuavizado = 0;   // Valor filtrado que usamos
-let offsetBrújula = 0;     // Para calibrar el "Frente" del teléfono
+// --- CONFIGURACIÓN DE CALIBRACIÓN ---
+// Si notas que el cono o el mapa apuntan hacia atrás de tu celular, cambia este 0 por 180, 90 o -90.
+const CALIBRACION_FRENTE = 0; 
+
+let anguloCrudo = null;    // Lectura caótica del sensor
+let anguloSuavizado = null;// Valor procesado y suavizado
 let modoAutoRotacion = false; 
+let ultimoAnguloRenderizado = -1;
 
 function mostrarNotificacion(mensaje) {
     let toast = document.getElementById('toast-giroscopio');
@@ -426,19 +425,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnBrujula.classList.add('bg-primary');
                 btnBrujula.innerHTML = '<i class="bi bi-compass-fill fs-4 text-white"></i>';
                 mostrarNotificacion("Rotación de mapa activada");
-                
-                // Forzar enfoque inmediato al activar
                 window.enfocarUsuario();
-
             } else {
                 btnBrujula.classList.remove('bg-primary');
                 btnBrujula.classList.add('bg-white');
                 btnBrujula.innerHTML = '<i class="bi bi-compass fs-4 text-dark"></i>';
                 
-                // Si desactivamos, regresamos el mapa al Norte absoluto
-                if (window.map && window.map.setBearing) {
-                    window.map.setBearing(0);
-                }
+                // Si desactivamos, regresamos el mapa al Norte absoluto inmediatamente
+                if (window.map && window.map.setBearing) window.map.setBearing(0);
+                ultimoAnguloRenderizado = -1; // Forzamos repintado del icono
             }
         });
     }
@@ -458,99 +453,74 @@ function inicializarBrujula() {
 
 function escucharOrientacion() {
     window.addEventListener('deviceorientationabsolute', handlerOrientacion, true);
-    // Fallback para iOS
     window.addEventListener('deviceorientation', handlerOrientacion, true);
 }
 
-// =======================================================
-// [MODIFICADO] PROCESAMIENTO CRIPTOGRÁFICO DE ORIENTACIÓN
-// =======================================================
+// Recopila los datos del sensor tal como llegan
 function handlerOrientacion(event) {
     let heading;
-    
-    // iOS usa webkitCompassHeading (Norte Verdadero/Magnético)
     if (event.webkitCompassHeading) {
         heading = event.webkitCompassHeading;
-    } 
-    // Android usa alpha (0 = Este, así que ajustamos)
-    else if (event.alpha !== null) {
-        // En navegadores web, event.alpha=0 suele apuntar al Este o a la posición inicial.
-        // La fórmula estandar para convertir 'alpha' a un "Norte" (Heading) aproximado en Android:
+    } else if (event.alpha !== null) {
         heading = 360 - event.alpha;
-        
-        // Dependiendo del teléfono, a veces necesitamos rotar la lectura 90 grados
-        // Si notas que apuntas al Norte y el cono apunta al Oeste, cambia este valor a 90 o -90
-        offsetBrújula = 0; 
-        
-        heading = (heading + offsetBrújula) % 360;
     }
 
     if (heading !== undefined && heading !== null) {
-        if (anguloCrudo === null) anguloSuavizado = heading; // Primer lectura instantánea
+        // Aplicamos la calibración definida arriba
+        heading = (heading + CALIBRACION_FRENTE) % 360;
+        
         anguloCrudo = heading;
+        if (anguloSuavizado === null) anguloSuavizado = heading;
     }
 }
 
 // =======================================================
-// [MODIFICADO] BUCLE DE FILTRADO Y RENDERIZADO
+// [CORE] ALGORITMO DE ESTABILIZACIÓN Y RENDERIZADO "TANQUE"
 // =======================================================
-let ultimoAnguloRenderizado = -1;
-
 function bucleSuavizadoYRotacion() {
-    if (anguloCrudo !== null) {
-        // 1. Encontrar el camino más corto en los 360 grados
+    if (anguloCrudo !== null && anguloSuavizado !== null) {
+        
         let diferencia = anguloCrudo - anguloSuavizado;
         while (diferencia > 180) diferencia -= 360;
         while (diferencia < -180) diferencia += 360;
 
-        // 2. ZONA MUERTA SEVERA: Ignorar temblores menores a 1.5 grados (estabiliza brutalmente)
-        if (Math.abs(diferencia) > 1.5) {
-            
-            // 3. LOW-PASS FILTER: Nos movemos solo el 5% hacia el objetivo (muy pesado y estable)
-            anguloSuavizado += diferencia * 0.05; 
-            
-            // Normalizar a 0-360
-            if (anguloSuavizado < 0) anguloSuavizado += 360;
-            if (anguloSuavizado >= 360) anguloSuavizado -= 360;
-            
-            // 4. REDONDEO: Para evitar que el CSS repinte constantemente por 0.1 grados
-            let anguloFinal = Math.round(anguloSuavizado);
+        // 1. FILTRO SÚPER DENSO: Solo nos movemos un 2% de la distancia por frame.
+        // Esto ignora virtualmente cualquier temblor rápido de tu mano.
+        anguloSuavizado += diferencia * 0.02; 
+        
+        if (anguloSuavizado < 0) anguloSuavizado += 360;
+        if (anguloSuavizado >= 360) anguloSuavizado -= 360;
+        
+        let anguloFinal = Math.round(anguloSuavizado);
 
-            if (anguloFinal !== ultimoAnguloRenderizado) {
-                
-                // CASO A: Rotación Automática (Modo Waze)
-                if (modoAutoRotacion && window.map && window.map.setBearing) {
-                    // El mapa gira en dirección OPUESTA para que el "frente" siempre quede arriba de la pantalla
-                    // Al mapa le pasamos el ángulo inverso para girarlo.
-                    window.map.setBearing(anguloFinal);
-                    
-                    // Como el mapa gira para mantener tu frente "Arriba", el cono de visión SIEMPRE
-                    // debe apuntar a 0 grados (Arriba de la pantalla del celular).
-                    actualizarRotacionIcono(0);
-                } 
-                // CASO B: Modo Libre (Mapa Quieto)
-                else {
-                    // El mapa está quieto (Norte Arriba).
-                    // El cono de visión es el que gira para señalar hacia dónde apunta el teléfono.
-                    actualizarRotacionIcono(anguloFinal);
-                }
+        // 2. ZONA MUERTA VISUAL: 
+        // Solo enviamos órdenes a Leaflet si el ángulo suavizado se ha movido al menos 2 grados reales.
+        // Esto evita que Leaflet se trabe tratando de girar 0.1 grados a cada rato.
+        let difRender = anguloFinal - ultimoAnguloRenderizado;
+        while (difRender > 180) difRender -= 360;
+        while (difRender < -180) difRender += 360;
 
-                ultimoAnguloRenderizado = anguloFinal;
+        if (Math.abs(difRender) >= 2 || ultimoAnguloRenderizado === -1) {
+            ultimoAnguloRenderizado = anguloFinal;
+
+            if (modoAutoRotacion && window.map && window.map.setBearing) {
+                // Modo Waze: Gira el mapa, el cono mira fijo hacia "Arriba"
+                window.map.setBearing(anguloFinal);
+                actualizarRotacionIcono(0);
+            } else {
+                // Modo Libre: Mapa quieto, el cono gira apuntando al Norte relativo
+                actualizarRotacionIcono(anguloFinal);
             }
         }
     }
     requestAnimationFrame(bucleSuavizadoYRotacion);
 }
 
-// Gira solo el divIcon del usuario
 function actualizarRotacionIcono(angulo) {
     const miMarcador = marcadores[socket.id];
     if (miMarcador && miMarcador._icon) {
-        // Encontramos el SVG directamente
         const svgElement = miMarcador._icon.querySelector('svg');
         if (svgElement) {
-            // Aplicamos la rotación directamente al SVG. 
-            // Esto es más limpio y evita problemas con la posición del contenedor de Leaflet.
             svgElement.style.transform = `rotateZ(${angulo}deg)`;
         }
     }
