@@ -7,7 +7,7 @@ const marcadores = {};
 let primerAjuste = true;
 let trayectoria = null;
 let marcador = null; 
-let siguiendoUsuario = false; // [NUEVO] Controla si la cámara sigue al usuario
+let siguiendoUsuario = false; // Controla si la cámara sigue al usuario
 
 // =======================================================
 // [NUEVO] ICONO DEL USUARIO (Estilo Google Maps con Cono)
@@ -128,7 +128,7 @@ socket.on('dibujar-ubicacion', (data) => {
         if (id === socket.id && marcador) window.enfocarUsuario();
     }
 
-    // [NUEVO] Motor de Auto-Seguimiento de Cámara
+    // Motor de Auto-Seguimiento de Cámara
     if (siguiendoUsuario && id === socket.id && window.map) {
         window.map.panTo([lat, lng], { animate: true, duration: 1.0, easeLinearity: 0.5 });
     }
@@ -136,7 +136,7 @@ socket.on('dibujar-ubicacion', (data) => {
     if (id === socket.id && primerAjuste) {
         window.map.flyTo([lat, lng], 16, { animate: true, duration: 2 });
         primerAjuste = false;
-        siguiendoUsuario = true; // Empieza siguiendo al usuario la primera vez
+        siguiendoUsuario = true; 
     }
 });
 
@@ -361,10 +361,10 @@ function dibujarLineaEnMapa(puntos) {
 window.enfocarUsuario = function() {
     const miPosicion = marcadores[socket.id];
     if (miPosicion && window.map) {
-        siguiendoUsuario = true; // Reactivamos el seguimiento automático al apretar el botón
+        siguiendoUsuario = true; 
         window.map.flyTo(miPosicion.getLatLng(), 18, { animate: true, duration: 1.5 });
         const btnEnfoque = document.getElementById('btnEnfocarGps');
-        if (btnEnfoque) btnEnfoque.style.display = 'none'; // Escondemos la mira hasta que mueva el mapa
+        if (btnEnfoque) btnEnfoque.style.display = 'none';
     }
 };
 
@@ -372,12 +372,11 @@ window.enfocarUsuario = function() {
 // 7. FILTROS, BRÚJULA ULTRA-ESTABLE Y ROTACIÓN AUTOMÁTICA
 // =======================================================
 
-// [CORRECCIÓN]: Regresado a 0. Esto empata la dirección del hardware con la cámara trasera.
+// Alineado a la cámara trasera del dispositivo
 const CALIBRACION_FRENTE = 0; 
 
 let anguloCrudo = null;    
 let anguloSuavizado = null;
-let velocidadAngular = 0; // Para la física del resorte
 let modoAutoRotacion = false; 
 let ultimoAnguloRenderizado = -1;
 
@@ -421,8 +420,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnEnfoque = document.getElementById('btnEnfocarGps');
     if (btnEnfoque && window.map) {
         window.map.on('dragstart', () => { 
-            siguiendoUsuario = false; // El usuario tomó el control del mapa, soltamos la cámara
-            btnEnfoque.style.display = 'flex'; // Mostramos el botón de GPS para regresar
+            siguiendoUsuario = false; 
+            btnEnfoque.style.display = 'flex'; 
         });
         btnEnfoque.addEventListener('click', () => { window.enfocarUsuario(); inicializarBrujula(); });
     }
@@ -476,16 +475,14 @@ function handlerOrientacion(event) {
     }
 
     if (heading !== undefined && heading !== null) {
-        // [CORRECCIÓN] Alineamos con la cámara trasera del dispositivo
         heading = (heading + CALIBRACION_FRENTE) % 360;
-        
         anguloCrudo = heading;
         if (anguloSuavizado === null) anguloSuavizado = heading;
     }
 }
 
 // =======================================================
-// [CORE] FÍSICA DE RESORTE TIPO WAZE (Spring & Damper)
+// [CORE] FILTRO DE ZONA MUERTA EXTREMA (Estilo Waze/Maps)
 // =======================================================
 function bucleSuavizadoYRotacion() {
     if (anguloCrudo !== null && anguloSuavizado !== null) {
@@ -494,41 +491,35 @@ function bucleSuavizadoYRotacion() {
         while (diferencia > 180) diferencia -= 360;
         while (diferencia < -180) diferencia += 360;
 
-        // FÍSICA APLICADA: 
-        // rigidez = qué tan fuerte atrae el objetivo a la cámara (bajo = se siente "pesado")
-        // amortiguacion = fricción que frena las oscilaciones y temblores
-        let rigidez = 0.05;       
-        let amortiguacion = 0.85; 
+        // Fricción extrema: Absorbe casi todo el movimiento (solo aplica 1.5% del cambio por frame)
+        // Esto le da una sensación de deslizamiento muy pesada y fluida.
+        let suavidad = 0.015;
+        if (Math.abs(diferencia) > 15) suavidad = 0.04; // Si das una vuelta grande a una esquina, acelera
 
-        // Si hay un giro brusco intencional (ej. dar vuelta en una esquina > 25 grados)
-        if (Math.abs(diferencia) > 25) {
-            rigidez = 0.15;
-            amortiguacion = 0.75;
-        }
-
-        velocidadAngular += diferencia * rigidez;
-        velocidadAngular *= amortiguacion;
-        anguloSuavizado += velocidadAngular; 
+        anguloSuavizado += diferencia * suavidad; 
         
         if (anguloSuavizado < 0) anguloSuavizado += 360;
         if (anguloSuavizado >= 360) anguloSuavizado -= 360;
         
-        // Truncamos a 1 decimal para que la matemática fluya exacto
-        let anguloFinal = parseFloat(anguloSuavizado.toFixed(1));
-
-        let difRender = anguloFinal - ultimoAnguloRenderizado;
+        // ZONA MUERTA MAGISTRAL:
+        // El mapa/icono no se va a actualizar a menos que el usuario se mueva
+        // de forma intencional más de 1.5 grados desde la última vez que pintamos el mapa.
+        let difRender = anguloSuavizado - ultimoAnguloRenderizado;
         while (difRender > 180) difRender -= 360;
         while (difRender < -180) difRender += 360;
 
-        // ZONA MUERTA GRÁFICA (0.2 grados) para proteger la GPU y mantener el mapa súper estable
-        if (Math.abs(difRender) >= 0.2 || ultimoAnguloRenderizado === -1) {
-            ultimoAnguloRenderizado = anguloFinal;
+        if (Math.abs(difRender) >= 1.5 || ultimoAnguloRenderizado === -1) {
+            
+            // Renderizamos EN GRADOS ENTEROS para que el motor CSS de Leaflet no se sature 
+            // intentando pintar decimales y causar vibraciones ("tartamudeos").
+            let anguloEntero = Math.round(anguloSuavizado);
+            ultimoAnguloRenderizado = anguloEntero;
 
             if (modoAutoRotacion && window.map && window.map.setBearing) {
-                window.map.setBearing(anguloFinal);
+                window.map.setBearing(anguloEntero);
                 actualizarRotacionIcono(0);
             } else {
-                actualizarRotacionIcono(anguloFinal);
+                actualizarRotacionIcono(anguloEntero);
             }
         }
     }
