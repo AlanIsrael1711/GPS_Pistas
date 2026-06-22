@@ -1,5 +1,5 @@
 // =======================================================
-// main.js - GPS, Sockets, Motor VECTORIAL y Brújula de Rotación
+// main.js - GPS, Sockets, Motor VECTORIAL y Brújula Avanzada
 // =======================================================
 
 const socket = io();
@@ -7,6 +7,38 @@ const marcadores = {};
 let primerAjuste = true;
 let trayectoria = null;
 let marcador = null; 
+
+// =======================================================
+// [NUEVO] ICONO DEL USUARIO (Estilo Google Maps con Cono)
+// =======================================================
+// SVG de un punto azul con un cono de dirección apuntando hacia arriba (Norte relativo)
+const iconoUsuarioConoSVG = `
+<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+  <!-- Cono de visión (apuntando hacia arriba) -->
+  <path d="M 20 20 L 5 0 A 20 20 0 0 1 35 0 Z" fill="rgba(37, 99, 235, 0.3)" />
+  <!-- Borde blanco del punto -->
+  <circle cx="20" cy="20" r="8" fill="white" />
+  <!-- Punto azul central -->
+  <circle cx="20" cy="20" r="6" fill="#2563eb" />
+</svg>
+`;
+
+const iconoUsuarioGoogleMaps = L.divIcon({
+    className: 'marcador-usuario-direccion',
+    html: iconoUsuarioConoSVG,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20] // El centro exacto del punto azul
+});
+
+// Aseguramos que el CSS para el icono no tenga transiciones que estorben
+const styleIcono = document.createElement('style');
+styleIcono.innerHTML = `
+    .marcador-usuario-direccion {
+        /* Transición hiper-rápida solo para el giro del cono en modo libre */
+        transition: transform 0.05s linear !important;
+    }
+`;
+document.head.appendChild(styleIcono);
 
 // =======================================================
 // 1. ESTRUCTURA DE DATOS: MIN-HEAP
@@ -89,9 +121,9 @@ socket.on('dibujar-ubicacion', (data) => {
             trazarRutaInteligente(marcadores[id].getLatLng(), marcador.getLatLng());
         }
     } else {
-        const iconoPropio = (window.iconos && window.iconos.miUbicacion) ? window.iconos.miUbicacion : new L.Icon.Default();
+        // [MODIFICADO] Asignar siempre el nuevo icono con cono al usuario local
         const iconoDestino = (window.iconos && window.iconos.destinoTemporal) ? window.iconos.destinoTemporal : new L.Icon.Default();
-        const iconoAsignar = (id === socket.id) ? iconoPropio : iconoDestino;
+        const iconoAsignar = (id === socket.id) ? iconoUsuarioGoogleMaps : iconoDestino;
         
         marcadores[id] = L.marker([lat, lng], { icon: iconoAsignar }).addTo(capaDestino);
         
@@ -305,9 +337,6 @@ function trazarRutaInteligente(inicioGPS, finGPS) {
     dibujarLineaEnMapa(pathCoords.map(pt => [pt.lat, pt.lng]));
 }
 
-// =======================================================
-// 6. FUNCIONES AUXILIARES Y DIBUJO
-// =======================================================
 function dibujarLineaEnMapa(puntos) {
     const capaParaTrayectoria = (window.capas && window.capas.trayectorias) ? window.capas.trayectorias : window.map;
     
@@ -338,12 +367,12 @@ window.enfocarUsuario = function() {
 // 7. FILTROS, BRÚJULA Y ROTACIÓN AUTOMÁTICA DEL MAPA
 // =======================================================
 
-// --- Variables para control de Rotación Matemática ---
-let anguloObjetivo = null; // El ángulo crudo del sensor
-let anguloActual = 0;      // El ángulo suavizado y filtrado
+// --- Variables Matemáticas para Orientación ---
+let anguloCrudo = null;    // Valor directo del sensor
+let anguloSuavizado = 0;   // Valor filtrado que usamos
+let offsetBrújula = 0;     // Para calibrar el "Frente" del teléfono
 let modoAutoRotacion = false; 
 
-// Notificación dinámica (Toast Inyectado por JS)
 function mostrarNotificacion(mensaje) {
     let toast = document.getElementById('toast-giroscopio');
     if (!toast) {
@@ -393,22 +422,20 @@ document.addEventListener('DOMContentLoaded', () => {
             modoAutoRotacion = !modoAutoRotacion;
             
             if (modoAutoRotacion) {
-                // MANTENER AZUL
                 btnBrujula.classList.remove('bg-white');
                 btnBrujula.classList.add('bg-primary');
                 btnBrujula.innerHTML = '<i class="bi bi-compass-fill fs-4 text-white"></i>';
+                mostrarNotificacion("Rotación de mapa activada");
                 
-                mostrarNotificacion("Utilizando giroscopio");
-                
-                if (window.map && window.map.setBearing) {
-                    window.map.setBearing(anguloActual);
-                }
+                // Forzar enfoque inmediato al activar
+                window.enfocarUsuario();
+
             } else {
-                // REGRESAR A BLANCO
                 btnBrujula.classList.remove('bg-primary');
                 btnBrujula.classList.add('bg-white');
                 btnBrujula.innerHTML = '<i class="bi bi-compass fs-4 text-dark"></i>';
                 
+                // Si desactivamos, regresamos el mapa al Norte absoluto
                 if (window.map && window.map.setBearing) {
                     window.map.setBearing(0);
                 }
@@ -417,74 +444,115 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     inicializarBrujula();
-    requestAnimationFrame(bucleSuavizadoGiroscopio); // Iniciar el motor matemático
+    requestAnimationFrame(bucleSuavizadoYRotacion);
 });
 
 function inicializarBrujula() {
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission().then(p => { if (p === 'granted') escucharOrientacion(); }).catch(console.error);
+        DeviceOrientationEvent.requestPermission().then(p => { 
+            if (p === 'granted') escucharOrientacion(); 
+            else alert("Se requiere acceso al giroscopio para orientar el mapa.");
+        }).catch(console.error);
     } else escucharOrientacion();
 }
 
 function escucharOrientacion() {
     window.addEventListener('deviceorientationabsolute', handlerOrientacion, true);
+    // Fallback para iOS
     window.addEventListener('deviceorientation', handlerOrientacion, true);
 }
 
-// Recibe la señal pura pero NO actualiza el mapa, solo actualiza el objetivo
+// =======================================================
+// [MODIFICADO] PROCESAMIENTO CRIPTOGRÁFICO DE ORIENTACIÓN
+// =======================================================
 function handlerOrientacion(event) {
-    let heading = event.webkitCompassHeading ? event.webkitCompassHeading : (event.alpha !== null ? 360 - event.alpha : null);
-    if (heading !== null) {
-        if (anguloObjetivo === null) anguloActual = heading; // El primer golpe es instantáneo
-        anguloObjetivo = heading;
+    let heading;
+    
+    // iOS usa webkitCompassHeading (Norte Verdadero/Magnético)
+    if (event.webkitCompassHeading) {
+        heading = event.webkitCompassHeading;
+    } 
+    // Android usa alpha (0 = Este, así que ajustamos)
+    else if (event.alpha !== null) {
+        // En navegadores web, event.alpha=0 suele apuntar al Este o a la posición inicial.
+        // La fórmula estandar para convertir 'alpha' a un "Norte" (Heading) aproximado en Android:
+        heading = 360 - event.alpha;
+        
+        // Dependiendo del teléfono, a veces necesitamos rotar la lectura 90 grados
+        // Si notas que apuntas al Norte y el cono apunta al Oeste, cambia este valor a 90 o -90
+        offsetBrújula = 0; 
+        
+        heading = (heading + offsetBrújula) % 360;
+    }
+
+    if (heading !== undefined && heading !== null) {
+        if (anguloCrudo === null) anguloSuavizado = heading; // Primer lectura instantánea
+        anguloCrudo = heading;
     }
 }
 
-// Bucle hiperfluido (60 fps) que filtra el ruido del giroscopio
+// =======================================================
+// [MODIFICADO] BUCLE DE FILTRADO Y RENDERIZADO
+// =======================================================
 let ultimoAnguloRenderizado = -1;
 
-function bucleSuavizadoGiroscopio() {
-    if (anguloObjetivo !== null) {
-        let diferencia = anguloObjetivo - anguloActual;
-
-        // Regla matemática para no dar giros completos cuando pasa del grado 359 al grado 1
+function bucleSuavizadoYRotacion() {
+    if (anguloCrudo !== null) {
+        // 1. Encontrar el camino más corto en los 360 grados
+        let diferencia = anguloCrudo - anguloSuavizado;
         while (diferencia > 180) diferencia -= 360;
         while (diferencia < -180) diferencia += 360;
 
-        // ZONA MUERTA: Si el temblor es menor a 0.5 grados, lo ignoramos por completo
-        if (Math.abs(diferencia) > 0.5) {
+        // 2. ZONA MUERTA SEVERA: Ignorar temblores menores a 1.5 grados (estabiliza brutalmente)
+        if (Math.abs(diferencia) > 1.5) {
             
-            // Factor 0.08: Se mueve el 8% de la distancia por fotograma (súper fluido y "pesado")
-            anguloActual += diferencia * 0.08; 
+            // 3. LOW-PASS FILTER: Nos movemos solo el 5% hacia el objetivo (muy pesado y estable)
+            anguloSuavizado += diferencia * 0.05; 
             
-            if (anguloActual < 0) anguloActual += 360;
-            if (anguloActual >= 360) anguloActual -= 360;
+            // Normalizar a 0-360
+            if (anguloSuavizado < 0) anguloSuavizado += 360;
+            if (anguloSuavizado >= 360) anguloSuavizado -= 360;
             
-            // Redondear a 1 decimal salva muchísimo procesamiento de la tarjeta gráfica
-            let anguloFinal = Math.round(anguloActual * 10) / 10;
+            // 4. REDONDEO: Para evitar que el CSS repinte constantemente por 0.1 grados
+            let anguloFinal = Math.round(anguloSuavizado);
 
             if (anguloFinal !== ultimoAnguloRenderizado) {
-                actualizarRotacionIcono(anguloFinal);
                 
+                // CASO A: Rotación Automática (Modo Waze)
                 if (modoAutoRotacion && window.map && window.map.setBearing) {
+                    // El mapa gira en dirección OPUESTA para que el "frente" siempre quede arriba de la pantalla
+                    // Al mapa le pasamos el ángulo inverso para girarlo.
                     window.map.setBearing(anguloFinal);
+                    
+                    // Como el mapa gira para mantener tu frente "Arriba", el cono de visión SIEMPRE
+                    // debe apuntar a 0 grados (Arriba de la pantalla del celular).
+                    actualizarRotacionIcono(0);
+                } 
+                // CASO B: Modo Libre (Mapa Quieto)
+                else {
+                    // El mapa está quieto (Norte Arriba).
+                    // El cono de visión es el que gira para señalar hacia dónde apunta el teléfono.
+                    actualizarRotacionIcono(anguloFinal);
                 }
+
                 ultimoAnguloRenderizado = anguloFinal;
             }
         }
     }
-    requestAnimationFrame(bucleSuavizadoGiroscopio);
+    requestAnimationFrame(bucleSuavizadoYRotacion);
 }
 
+// Gira solo el divIcon del usuario
 function actualizarRotacionIcono(angulo) {
     const miMarcador = marcadores[socket.id];
     if (miMarcador && miMarcador._icon) {
-        const currentTransform = miMarcador._icon.style.transform;
-        if (!currentTransform) return;
-        const baseTransform = currentTransform.replace(/ rotateZ\([^)]+\)/g, '');
-        // El movimiento ya es fluido por la matemática en JS, quitamos las transiciones de CSS para no duplicar el trabajo
-        miMarcador._icon.style.transition = 'none'; 
-        miMarcador._icon.style.transform = `${baseTransform} rotateZ(${angulo}deg)`;
+        // Encontramos el SVG directamente
+        const svgElement = miMarcador._icon.querySelector('svg');
+        if (svgElement) {
+            // Aplicamos la rotación directamente al SVG. 
+            // Esto es más limpio y evita problemas con la posición del contenedor de Leaflet.
+            svgElement.style.transform = `rotateZ(${angulo}deg)`;
+        }
     }
 }
 
