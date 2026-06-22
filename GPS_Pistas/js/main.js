@@ -191,7 +191,15 @@ let marcadorTemp = null;
 let nombreLugarTemporal = ""; 
 let trazandoRuta = false; 
 
+// Guardamos el tiempo del último dragend para ignorar el 'click' que
+// Leaflet dispara al soltar el dedo después de arrastrar el mapa.
+let _ultimoDragEnd = 0;
+window.map.on('dragend', () => { _ultimoDragEnd = Date.now(); });
+
 window.map.on('click', function(e) {
+    // Ignorar si el evento viene inmediatamente después de un drag (< 300 ms).
+    if (Date.now() - _ultimoDragEnd < 300) return;
+
     const panel = document.getElementById('panelDestino');
     if (!panel.classList.contains('oculto')) {
         panel.classList.add('oculto');
@@ -444,6 +452,25 @@ document.addEventListener('DOMContentLoaded', () => {
         btnEnfoque.addEventListener('click', () => { window.enfocarUsuario(); });
     }
 
+    // Botón brújula: resetea el mapa al norte y al zoom por defecto (16).
+    const btnBrujula = document.getElementById('btnBrujula');
+    if (btnBrujula) {
+        btnBrujula.addEventListener('click', () => {
+            if (window.map) {
+                // Vuelve el bearing a 0 (norte arriba) con animación suave.
+                if (typeof window.map.setBearing === 'function') {
+                    window.map.setBearing(0, { animate: true, duration: 0.5 });
+                }
+                // Fuerza re-render del icono con el bearing ya en 0.
+                setTimeout(() => {
+                    if (ultimoAnguloRenderizado !== -1) {
+                        actualizarRotacionIcono(ultimoAnguloRenderizado);
+                    }
+                }, 520);
+            }
+        });
+    }
+
     iniciarGiroscopio();
     requestAnimationFrame(bucleIconoSuave);
 });
@@ -539,7 +566,14 @@ function actualizarRotacionIcono(angulo) {
     if (miMarcador && miMarcador._icon) {
         const svgElement = miMarcador._icon.querySelector('svg');
         if (svgElement) {
-            svgElement.style.transform = `rotateZ(${angulo}deg)`;
+            // Compensamos la rotación actual del mapa para que el icono siempre
+            // apunte hacia donde apunta el dispositivo en el mundo real,
+            // independientemente de cómo esté girado el mapa en pantalla.
+            const bearingMapa = (window.map && typeof window.map.getBearing === 'function')
+                ? window.map.getBearing()
+                : 0;
+            const anguloFinal = ((angulo - bearingMapa) % 360 + 360) % 360;
+            svgElement.style.transform = `rotateZ(${anguloFinal}deg)`;
         }
     }
 }
@@ -570,5 +604,14 @@ document.addEventListener('DOMContentLoaded', () => {
         window.map.on('rotateend', desactivarModoMovimiento);
         window.map.on('dragend', desactivarModoMovimiento);
         window.map.on('zoomend', desactivarModoMovimiento);
+
+        // Cuando el mapa rota manualmente, re-renderizamos el icono al instante
+        // con el último ángulo conocido para que siempre apunte en la dirección
+        // correcta del mundo real sin esperar al siguiente tick del giroscopio.
+        window.map.on('rotate', () => {
+            if (ultimoAnguloRenderizado !== -1) {
+                actualizarRotacionIcono(ultimoAnguloRenderizado);
+            }
+        });
     }
 });
