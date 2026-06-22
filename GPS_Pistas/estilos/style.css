@@ -1,0 +1,422 @@
+/* ==========================================================================
+   VARIABLES GLOBALES
+   ========================================================================== */
+   :root {
+    --primary-color: #2563eb;
+    --primary-hover: #1d4ed8;
+    --danger-color: #ff4757;
+    --dark-bg: #1e1e2e;
+    --text-light: #f8f9fa;
+    --nav-height: 56px;
+}
+
+/* ==========================================================================
+   CONFIGURACIÓN BASE
+   ========================================================================== */
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden; /* Fundamental en móviles para evitar el "rebote" al arrastrar el mapa */
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: #f4f4f9;
+}
+
+/* ==========================================================================
+   MAPA PRINCIPAL
+   ========================================================================== */
+#map {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 0; /* Capa base, todo lo demás va por encima */
+    cursor: crosshair; /* Cursor de precisión para señalar puntos */
+    touch-action: none !important;
+}
+
+/* ==========================================================================
+   INTERFAZ DE USUARIO (UI) SOBRE EL MAPA
+   ========================================================================== */
+/* Asegurar que la barra de navegación de Bootstrap esté siempre arriba */
+.navbar {
+    z-index: 1030; /* Valor por defecto de Bootstrap para navbars fijos */
+    background-color: rgba(30, 30, 46, 0.95) !important; /* Toque translúcido oscuro */
+    backdrop-filter: blur(10px); /* Efecto cristal */
+}
+
+/* Botón Flotante (FAB) para filtros */
+.fab-filter {
+    position: fixed;
+    bottom: 30px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--primary-color);
+    border: none;
+    color: blue;
+    transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.fab-filter:hover {
+    background-color: var(--primary-hover);
+    transform: scale(1.05);
+}
+
+.fab-filter:active {
+    transform: scale(0.95);
+}
+
+/* ==========================================================================
+   AJUSTES Y PERSONALIZACIÓN DE LEAFLET
+   ========================================================================== */
+/* Bajar los controles de zoom para que no los tape el Navbar fijo */
+.leaflet-top.leaflet-left {
+    margin-top: calc(var(--nav-height) + 15px);
+}
+
+/* Estilos profesionales para los Popups (Globos de texto) del mapa */
+.custom-popup .leaflet-popup-content-wrapper {
+    background: var(--dark-bg);
+    color: var(--text-light);
+    border-radius: 8px;
+    padding: 2px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.custom-popup .leaflet-popup-tip {
+    background: var(--dark-bg);
+}
+
+.custom-popup strong {
+    color: var(--danger-color);
+    display: block;
+    margin-bottom: 5px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 1.1em;
+    letter-spacing: 0.5px;
+}
+
+.custom-popup p {
+    margin: 0;
+    font-size: 0.95em;
+    line-height: 1.4;
+}
+
+/* ==========================================================================
+   SOBRESCRITURA DE BOOTSTRAP (OFFCANVAS Y FORMULARIOS)
+   ========================================================================== */
+/* Personalizar los switches (botones de encendido/apagado) del menú de filtros */
+.form-check-input:checked {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.form-check-input:focus {
+    box-shadow: 0 0 0 0.25rem rgba(37, 99, 235, 0.25);
+    border-color: var(--primary-hover);
+}
+
+/* Estilizar el Offcanvas para que luzca más limpio */
+.offcanvas {
+    border-left: none;
+    box-shadow: -5px 0 25px rgba(0,0,0,0.15);
+}
+
+.offcanvas-header {
+    background-color: #ffffff;
+}
+
+.offcanvas-title {
+    color: var(--dark-bg);
+}
+
+/* Estilo para el texto sobre las pistas (Rotundo y visible) */
+.etiqueta-pista {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #000000; /* Texto blanco */
+    font-size: 1rem;
+    font-weight: 150;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.8); /* Sombra para que contraste con el rojo/gris */
+    pointer-events: none; /* Evita que el texto bloquee los clics en el mapa */
+}
+
+/* Ocultar la flechita del tooltip por defecto de Leaflet */
+.etiqueta-pista::before { display: none !important; }
+
+/* Estilo para señalizaciones pequeñas (Letras amarillas o negras) */
+.etiqueta-senalizacion {
+    background: transparent;
+    border: none;
+    color: #ffc107; /* Amarillo preventivo */
+    font-size: 0.85rem;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.9);
+    white-space: nowrap; /* Evita que el texto se parta en dos líneas */
+}
+
+/* ==========================================================================
+   MEJORAS DE UI PARA EL MAPA (SIN RECUADROS Y ETIQUETAS PERMANENTES)
+   ========================================================================== */
+
+/* Eliminar el recuadro negro de enfoque al hacer clic en zonas o edificios */
+.leaflet-interactive:focus,
+.leaflet-container :focus {
+    outline: none !important;
+}
+
+/* Estilo minimalista y flotante para las etiquetas de los edificios */
+.leaflet-tooltip.etiqueta-edificio {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #1e293b; /* Tono oscuro para buen contraste */
+    font-weight: 800;
+    font-size: 11px;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    
+    /* Contorno blanco para que el texto sea legible sobre cualquier color de mapa */
+    text-shadow: 
+        1px 1px 0px #ffffff, 
+       -1px -1px 0px #ffffff, 
+        1px -1px 0px #ffffff, 
+       -1px 1px 0px #ffffff,
+        0px 0px 4px #ffffff;
+        
+    pointer-events: none; /* Crucial para que el clic pase a través de la letra hacia el polígono */
+}
+
+/* Ocultar la flecha por defecto del tooltip de Leaflet */
+.leaflet-tooltip.etiqueta-edificio::before {
+    display: none !important;
+}
+
+#map.ocultar-etiquetas-edificios .etiqueta-edificio {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transition: opacity 0.2s ease; /* Transición suave */
+}
+.search-container {
+    position: absolute;
+    top: 20px !important; /* Subimos el buscador ya que quitamos el Nav */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 400px;
+    z-index: 1040 !important;
+}
+
+#buscadorMapa {
+    border-radius: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    border: none;
+    padding: 10px 20px;
+}
+
+#resultadosBusqueda {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    max-height: 200px; /* Limitar altura en móviles */
+    overflow-y: auto;
+    border-radius: 10px;
+    margin-top: 5px;
+}
+
+.resultado-item {
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+.resultado-item:active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* 1. Mandar el buscador detrás del Offcanvas de Bootstrap (z-index 1045) */
+.search-container {
+    z-index: 1040 !important; 
+}
+
+/* 2. Estilo de etiquetas "transparentes" para Edificios y Pistas */
+.etiqueta-edificio, .etiqueta-pista {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    font-weight: bold;
+    font-size: 14px;
+    color: #111827; /* Color oscuro */
+    /* Contorno blanco para que se lea sobre cualquier color del mapa */
+    text-shadow: 2px 0 2px #fff, -2px 0 2px #fff, 0 2px 2px #fff, 0 -2px 2px #fff; 
+}
+
+/* Quitar el triangulito (flecha) del tooltip por defecto */
+.etiqueta-edificio::before, .etiqueta-pista::before {
+    display: none !important;
+}
+
+/* 3. Clases para ocultar las etiquetas mediante los filtros */
+#map.ocultar-etiquetas-edificios .etiqueta-edificio {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transition: opacity 0.2s ease;
+}
+
+#map.ocultar-etiquetas-pistas .etiqueta-pista {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transition: opacity 0.2s ease;
+}
+
+/* Botón flotante para reenfoque GPS */
+.btn-enfoque-gps {
+    position: absolute;
+    bottom: 30px; 
+    right: 20px;
+    z-index: 1040; /* Por encima de las capas del mapa */
+    background-color: #2563eb; /* Color azul estilo navegación */
+    color: white;
+    border: none;
+    border-radius: 50px;
+    padding: 12px 20px;
+    font-weight: bold;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-enfoque-gps:active {
+    transform: scale(0.95);
+    background-color: #1d4ed8;
+}
+
+/* ==========================================================================
+   BOTTOM SHEET (REEMPLAZO DEL POPUP)
+   ========================================================================== */
+   .bottom-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: #ffffff !important; /* Fondo Blanco brillante */
+    color: #111827 !important; /* Texto oscuro para buen contraste */
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -5px 25px rgba(0,0,0,0.15);
+    z-index: 1050;
+    transform: translateY(0);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 20px;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+}
+
+.bottom-sheet.oculto {
+    transform: translateY(120%); /* Lo esconde hacia abajo */
+}
+
+.bs-content h5 {
+    font-size: 1.2rem;
+    letter-spacing: 0.5px;
+}
+
+/* ==========================================================================
+   SEÑALIZACIONES DEL AEROPUERTO (INDICADORES VISUALES)
+   ========================================================================== */
+   .tipo-senalizacion {
+    pointer-events: none !important; /* El clic traspasa la señal hacia el mapa */
+}
+
+.senalizacion-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transform: translate(-50%, -50%); /* Anclaje perfecto al centro */
+}
+
+.senalizacion-icono {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    color: #ffffff;
+    font-size: 11px;
+    border: 1.5px solid #ffffff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.6);
+    margin-bottom: 2px;
+}
+
+.senalizacion-texto {
+    font-size: 10px;
+    font-weight: 800;
+    color: #ffffff;
+    white-space: nowrap;
+    text-transform: uppercase;
+    /* Contorno negro intenso para que resalte sobre verde hierba o asfalto gris */
+    text-shadow: 
+        1px 1px 0 #000, 
+       -1px -1px 0 #000, 
+        1px -1px 0 #000, 
+       -1px 1px 0 #000,
+        0 2px 4px rgba(0,0,0,0.8);
+}
+/* ==========================================================================
+   OPTIMIZACIÓN DE RENDIMIENTO PARA ROTACIÓN 3D
+   ========================================================================== */
+/* Forzamos a que las capas del mapa y los iconos se muevan a 0 segundos de retraso */
+.leaflet-map-pane,
+.leaflet-marker-pane,
+.leaflet-popup-pane,
+.leaflet-tooltip-pane,
+.leaflet-marker-icon {
+    transition: transform 0s !important; 
+}
+
+/* Permitimos que solo el icono del GPS (cuando rotas físicamente con la brújula) 
+   conserve su suavidad para que no se vea robótico */
+.leaflet-marker-icon.gps-marcador {
+    transition: transform 0.15s ease-out !important;
+}
+/* ==========================================================================
+   ACELERACIÓN GPU Y TRUCO DE ROTACIÓN FLUIDA
+   ========================================================================== */
+/* 1. Forzar al celular a usar su Tarjeta Gráfica dedicada (GPU) */
+.leaflet-map-pane,
+.leaflet-marker-pane,
+.leaflet-popup-pane,
+.leaflet-marker-icon {
+    will-change: transform;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+    /* Aniquila cualquier micro-animación predeterminada que cause lag */
+    transition: transform 0s linear !important; 
+}
+
+/* 2. El "Truco Waze": Ocultar textos temporalmente mientras la cámara gira */
+.mapa-en-movimiento .tipo-edificio,
+.mapa-en-movimiento .tipo-senalizacion {
+    opacity: 0 !important;
+    transition: opacity 0.1s ease-out !important; /* Desvanecimiento suave */
+}
+
+/* Permitir que los textos regresen suavemente cuando el mapa se detiene */
+.tipo-edificio, .tipo-senalizacion {
+    transition: opacity 0.3s ease-in !important;
+}
+
+/* El marcador del usuario SIEMPRE debe estar visible */
+.mapa-en-movimiento .gps-marcador {
+    opacity: 1 !important;
+}

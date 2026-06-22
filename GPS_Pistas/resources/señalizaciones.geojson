@@ -1,0 +1,148 @@
+{
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -99.055598,
+            19.442964
+          ]
+        },
+        "properties": {
+          "name": "INDICADOR DE LA DIRECCION DEL VIENTO"
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "name": "GLIDE PATH 23L"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -99.0575494,
+            19.4446799
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "name": "PAPI 23L"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -99.0573794,
+            19.4425394
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "name": "LOCALIZADOR 05R"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -99.0507442,
+            19.4466566
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "name": "PAPI 23R"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -99.0657386,
+            19.4411421
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "name": "INDICADOR DE LA DIRECCIÓN DEL VIENTO"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -99.0721844,
+            19.4364752
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "name": "ARP"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -99.0733777,
+            19.4359587
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "name": "PAPI 05R"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -99.0792578,
+            19.431116
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "name": "GLIDE PATH 05R"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -99.0788304,
+            19.4293533
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "name": "INDICADOR DE LA DIRECCIóN DEL VIENTO"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -99.0838896,
+            19.429733
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "name": "LOCALIZADOR 23L"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -99.0886702,
+            19.4254641
+          ]
+        }
+      }
+    ]
+  }

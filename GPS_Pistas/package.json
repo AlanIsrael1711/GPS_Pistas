@@ -1,0 +1,20 @@
+{
+  "name": "gps_pistas",
+  "version": "1.0.0",
+  "description": "Prueba de proyecto de gps con celular para pistas",
+  "license": "ISC",
+  "author": "AIEV",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@turf/turf": "^7.3.5",
+    "express": "^5.2.1",
+    "ngrok": "^5.0.0-beta.2",
+    "nodemon": "^3.1.14",
+    "socket.io": "^4.8.3",
+    "turf": "^3.0.14"
+  }
+}
