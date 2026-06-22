@@ -29,10 +29,13 @@ const iconoUsuarioGoogleMaps = L.divIcon({
     iconAnchor: [20, 20] 
 });
 
+// [CORRECCIÓN]: Eliminamos la transición de CSS. 
+// Las animaciones de CSS peleaban con el renderizado a 60fps de JS causando los "saltos" y tartamudeos.
 const styleIcono = document.createElement('style');
 styleIcono.innerHTML = `
-    .marcador-usuario-direccion {
-        transition: transform 0.1s linear !important;
+    .marcador-usuario-direccion svg {
+        transition: none !important; 
+        will-change: transform;
     }
 `;
 document.head.appendChild(styleIcono);
@@ -363,14 +366,13 @@ window.enfocarUsuario = function() {
 // 7. FILTROS, BRÚJULA ULTRA-ESTABLE Y ROTACIÓN AUTOMÁTICA
 // =======================================================
 
-// --- CONFIGURACIÓN DE CALIBRACIÓN ---
-// Si notas que el cono o el mapa apuntan hacia atrás de tu celular, cambia este 0 por 180, 90 o -90.
 const CALIBRACION_FRENTE = 0; 
 
-let anguloCrudo = null;    // Lectura caótica del sensor
-let anguloSuavizado = null;// Valor procesado y suavizado
+let anguloCrudo = null;    
+let anguloSuavizado = null;
 let modoAutoRotacion = false; 
 let ultimoAnguloRenderizado = -1;
+let velocidadSuavizado = 0.01; // Velocidad dinámica
 
 function mostrarNotificacion(mensaje) {
     let toast = document.getElementById('toast-giroscopio');
@@ -390,7 +392,7 @@ function mostrarNotificacion(mensaje) {
     window.toastTimer = setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateX(-50%) scale(0.95)';
-    }, 1500); // [MODIFICADO] Duración a 1.5 segundos (1500 ms)
+    }, 1500); 
 }
 
 const chkEvitarPistas = document.getElementById('chkEvitarPistas');
@@ -431,9 +433,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnBrujula.classList.add('bg-white');
                 btnBrujula.innerHTML = '<i class="bi bi-compass fs-4 text-dark"></i>';
                 
-                // Si desactivamos, regresamos el mapa al Norte absoluto inmediatamente
                 if (window.map && window.map.setBearing) window.map.setBearing(0);
-                ultimoAnguloRenderizado = -1; // Forzamos repintado del icono
+                ultimoAnguloRenderizado = -1; 
             }
         });
     }
@@ -456,7 +457,6 @@ function escucharOrientacion() {
     window.addEventListener('deviceorientation', handlerOrientacion, true);
 }
 
-// Recopila los datos del sensor tal como llegan
 function handlerOrientacion(event) {
     let heading;
     if (event.webkitCompassHeading) {
@@ -466,7 +466,6 @@ function handlerOrientacion(event) {
     }
 
     if (heading !== undefined && heading !== null) {
-        // Aplicamos la calibración definida arriba
         heading = (heading + CALIBRACION_FRENTE) % 360;
         
         anguloCrudo = heading;
@@ -475,7 +474,7 @@ function handlerOrientacion(event) {
 }
 
 // =======================================================
-// [CORE] ALGORITMO DE ESTABILIZACIÓN Y RENDERIZADO "TANQUE"
+// [CORE] ALGORITMO DINÁMICO (FILTRO DE VISCOSIDAD MAGNÉTICA)
 // =======================================================
 function bucleSuavizadoYRotacion() {
     if (anguloCrudo !== null && anguloSuavizado !== null) {
@@ -484,31 +483,41 @@ function bucleSuavizadoYRotacion() {
         while (diferencia > 180) diferencia -= 360;
         while (diferencia < -180) diferencia += 360;
 
-        // 1. FILTRO SÚPER DENSO: 1.5% de la distancia por frame. Extrañamente lento para estabilizar perfecto.
-        anguloSuavizado += diferencia * 0.015; 
+        // [NUEVO] FILTRO DINÁMICO
+        // Analizamos qué tan brusco es el cambio del sensor.
+        if (Math.abs(diferencia) > 10) {
+            // El usuario claramente dio una vuelta a la esquina (Movimiento rápido 8%)
+            velocidadSuavizado = 0.08;
+        } else if (Math.abs(diferencia) > 3) {
+            // Un giro ligero intencional (Movimiento moderado 3%)
+            velocidadSuavizado = 0.03;
+        } else {
+            // Un micromovimiento o temblor de mano (Extremadamente denso y lento 0.5%)
+            // Esto aniquila el "ruido" que hace que el mapa tiemble
+            velocidadSuavizado = 0.005;
+        }
+
+        anguloSuavizado += diferencia * velocidadSuavizado; 
         
         if (anguloSuavizado < 0) anguloSuavizado += 360;
         if (anguloSuavizado >= 360) anguloSuavizado -= 360;
         
-        // [MODIFICADO] Eliminamos el redondeo (Math.round) para que Leaflet use decimales precisos.
-        // Esto elimina por completo el "tartamudeo" o "escalones" al rotar el mapa entero.
-        let anguloFinal = parseFloat(anguloSuavizado.toFixed(2));
+        // Conservamos solo 1 decimal para que sea matemáticamente estable sin tartamudear
+        let anguloFinal = parseFloat(anguloSuavizado.toFixed(1));
 
-        // 2. ZONA MUERTA VISUAL: Solo actualizamos el mapa si se ha movido al menos 0.1 grados.
-        // Previene la sobrecarga gráfica de actualizar si el teléfono está en reposo.
         let difRender = anguloFinal - ultimoAnguloRenderizado;
         while (difRender > 180) difRender -= 360;
         while (difRender < -180) difRender += 360;
 
-        if (Math.abs(difRender) >= 0.1 || ultimoAnguloRenderizado === -1) {
+        // Solo le mandamos la orden al renderizador gráfico si el cambio supera los 0.5 grados.
+        // Combinado con la desactivación de CSS, esto vuelve el giro hiper suave.
+        if (Math.abs(difRender) >= 0.5 || ultimoAnguloRenderizado === -1) {
             ultimoAnguloRenderizado = anguloFinal;
 
             if (modoAutoRotacion && window.map && window.map.setBearing) {
-                // Modo Waze: Gira el mapa de forma fluida continua.
                 window.map.setBearing(anguloFinal);
                 actualizarRotacionIcono(0);
             } else {
-                // Modo Libre: Mapa quieto, el cono gira apuntando al Norte relativo
                 actualizarRotacionIcono(anguloFinal);
             }
         }
