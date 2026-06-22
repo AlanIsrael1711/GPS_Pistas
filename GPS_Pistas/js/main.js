@@ -566,14 +566,10 @@ function actualizarRotacionIcono(angulo) {
     if (miMarcador && miMarcador._icon) {
         const svgElement = miMarcador._icon.querySelector('svg');
         if (svgElement) {
-            // Compensamos la rotación actual del mapa para que el icono siempre
-            // apunte hacia donde apunta el dispositivo en el mundo real,
-            // independientemente de cómo esté girado el mapa en pantalla.
-            const bearingMapa = (window.map && typeof window.map.getBearing === 'function')
-                ? window.map.getBearing()
-                : 0;
-            const anguloFinal = ((angulo + bearingMapa) % 360 + 360) % 360;
-            svgElement.style.transform = `rotateZ(${anguloFinal}deg)`;
+            // El icono vive DENTRO del contenedor del mapa, que Leaflet ya rota
+            // cuando el usuario gira el mapa. Por eso el ángulo del giroscopio
+            // se aplica directo: el mapa se encarga de la compensación visual.
+            svgElement.style.transform = `rotateZ(${angulo}deg)`;
         }
     }
 }
@@ -605,13 +601,5 @@ document.addEventListener('DOMContentLoaded', () => {
         window.map.on('dragend', desactivarModoMovimiento);
         window.map.on('zoomend', desactivarModoMovimiento);
 
-        // Cuando el mapa rota manualmente, re-renderizamos el icono al instante
-        // con el último ángulo conocido para que siempre apunte en la dirección
-        // correcta del mundo real sin esperar al siguiente tick del giroscopio.
-        window.map.on('rotate', () => {
-            if (ultimoAnguloRenderizado !== -1) {
-                actualizarRotacionIcono(ultimoAnguloRenderizado);
-            }
-        });
     }
 });
