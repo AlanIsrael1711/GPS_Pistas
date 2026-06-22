@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GPS Pistas</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+<link rel="stylesheet" href="./estilos/style.css">    
+    <style>
+        .fab-container {
+            position: fixed;
+            bottom: 30px;
+            right: 20px;
+            z-index: 1040;
+            display: flex;
+            flex-direction: column;
+            gap: 15px; 
+        }
+        
+        .fab-btn {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            transition: transform 0.1s ease-in-out, background-color 0.2s;
+        }
+        
+        .fab-btn:active {
+            transform: scale(0.92); 
+        }
+    </style>
+</head>
+<body>
+
+    <div id="searchBackdrop" class="d-none" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1035; background-color: rgba(0,0,0,0.1); backdrop-filter: blur(2px); transition: all 0.2s ease;"></div>
+
+    <div class="search-container">
+        <div class="d-flex align-items-center w-100">
+            <button id="btnCerrarBuscador" class="btn btn-light rounded-circle shadow-sm me-2 d-none" style="width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <i class="bi bi-arrow-left fs-5 text-dark"></i>
+            </button>
+
+            <div class="position-relative flex-grow-1">
+                <input type="text" id="buscadorMapa" class="form-control shadow-sm" placeholder="Buscar edificio, puerta..." autocomplete="off" style="border-radius: 25px; padding: 12px 20px; font-size: 16px;">
+                <button id="btnLimpiarBusqueda" class="btn btn-sm d-none" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); border: none; background: transparent; color: #6c757d;">
+                    <i class="bi bi-x-circle-fill fs-5"></i>
+                </button>
+            </div>
+        </div>
+        <ul id="resultadosBusqueda" class="list-group shadow-lg d-none position-absolute w-100 mt-2" style="max-height: 250px; overflow-y: auto; border-radius: 15px;"></ul>
+    </div>
+
+    <div id="map"></div>
+        
+    <div class="fab-container">
+        <button id="btnBrujula" class="fab-btn bg-white shadow-lg" aria-label="Rotar Mapa">
+            <i class="bi bi-compass fs-4 text-dark"></i>
+        </button>
+
+        <button id="btnEnfocarGps" class="fab-btn bg-white shadow-lg" style="display: none;" aria-label="Enfocar al usuario">
+            <i class="bi bi-crosshair fs-4 text-primary"></i>
+        </button>
+        
+        <button class="fab-btn bg-primary shadow-lg" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterPanel" aria-controls="filterPanel">
+            <i class="bi bi-sliders2 fs-4 text-white"></i>
+        </button>
+    </div>
+
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="filterPanel" aria-labelledby="filterPanelLabel">
+        <div class="offcanvas-header border-bottom">
+            <h5 class="offcanvas-title fw-bold" id="filterPanelLabel"><i class="bi bi-gear-fill me-2 text-secondary"></i>Panel de Control</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+        </div>
+        
+        <div class="offcanvas-body d-flex flex-column">
+            <div class="mb-4">
+                <label class="form-label fw-semibold text-secondary mb-3 text-uppercase" style="font-size: 0.85rem;">Restricciones de Ruta</label>
+                <div class="form-check form-switch p-3 bg-light rounded-4 border border-secondary-subtle mb-4">
+                    <input class="form-check-input ms-0 me-3 mt-1 fs-5" type="checkbox" role="switch" id="chkEvitarPistas" checked>
+                    <label class="form-check-label fw-bold text-dark d-block" for="chkEvitarPistas">Evitar Pistas de Vuelo</label>
+                </div>
+
+                <label class="form-label fw-semibold text-secondary mb-3 text-uppercase" style="font-size: 0.85rem;">Visibilidad en Mapa</label>
+                <div class="form-check form-switch p-3 bg-light rounded-4 border border-secondary-subtle mb-2">
+                    <input class="form-check-input ms-0 me-3 mt-1 fs-5" type="checkbox" role="switch" id="chkEtiquetasEdificios" checked>
+                    <label class="form-check-label fw-bold text-dark d-block" for="chkEtiquetasEdificios">Ver Nombres de Edificios</label>
+                </div>
+                <div class="form-check form-switch p-3 bg-light rounded-4 border border-secondary-subtle mb-2">
+                    <input class="form-check-input ms-0 me-3 mt-1 fs-5" type="checkbox" role="switch" id="chkEtiquetasPistas" checked>
+                    <label class="form-check-label fw-bold text-dark d-block" for="chkEtiquetasPistas">Ver Nombres de Pistas</label>
+                </div>
+                <div class="form-check form-switch p-3 bg-light rounded-4 border border-secondary-subtle">
+                    <input class="form-check-input ms-0 me-3 mt-1 fs-5" type="checkbox" role="switch" id="chkSenalizaciones" checked>
+                    <label class="form-check-label fw-bold text-dark d-block" for="chkSenalizaciones">Ver Señalizaciones</label>
+                </div>
+            </div> 
+            <button class="btn btn-dark w-100 mt-auto rounded-pill py-2 fw-bold" type="button" data-bs-dismiss="offcanvas">Aplicar y Cerrar</button>
+        </div>
+    </div>
+
+    <div id="panelDestino" class="bottom-sheet oculto">
+        <div class="bs-content position-relative">
+            <button type="button" class="btn-close position-absolute top-0 end-0" aria-label="Cerrar" onclick="window.cerrarPanelDestino()"></button>
+            <h5 id="bs-titulo" class="text-primary mb-1 fw-bold pe-4">Nombre del Lugar</h5>
+            <p class="text-muted small mb-3">Toca el botón para confirmar y trazar la ruta</p>
+            <button class="btn btn-primary w-100 fw-bold py-2" onclick="window.confirmarNuevoDestino()">
+                <i class="bi bi-geo-alt-fill me-2"></i> ✔ Iniciar Ruta
+            </button>
+        </div>
+    </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    
+    <script src="./js/mapConfig.js"></script>
+    <script src="./js/mapIconos.js"></script>
+    <script src="./js/mapFiltros.js"></script>
+    <script src="./js/mapProhibidos.js"></script>
+    <script src="./js/mapInteres.js"></script> 
+    <script src="./js/mapEtiquetas.js"></script>
+    <script src="./js/main.js"></script>
+</body>
+</html>
