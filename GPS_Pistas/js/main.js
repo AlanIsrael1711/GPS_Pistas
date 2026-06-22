@@ -114,6 +114,13 @@ socket.on('dibujar-ubicacion', (data) => {
     const { id, lat, lng } = data;
     const capaDestino = (window.capas && window.capas.usuarios) ? window.capas.usuarios : window.map;
 
+    // Si el marcador existe pero ya no está en ninguna capa (por zoom, reinicio de capa,
+    // o pantalla apagada), lo eliminamos para que se recree limpio.
+    if (marcadores[id] && !window.map.hasLayer(marcadores[id])) {
+        try { capaDestino.removeLayer(marcadores[id]); } catch (_) {}
+        delete marcadores[id];
+    }
+
     if (marcadores[id]) {
         marcadores[id].setLatLng([lat, lng]);
         if (id === socket.id && marcador && trayectoria) {
@@ -156,6 +163,25 @@ socket.on('usuario-desconectado', (id) => {
         capaDestino.removeLayer(marcadores[id]);
         delete marcadores[id];
     }
+});
+
+// Al reconectarse (pantalla apagada, red caída, etc.) el socket.id cambia.
+// Limpiamos TODOS los marcadores propios anteriores para que no queden duplicados.
+socket.on('connect', () => {
+    const capa = (window.capas && window.capas.usuarios) ? window.capas.usuarios : window.map;
+
+    // Borramos cualquier marcador que no sea de otro usuario conocido por el
+    // nuevo socket.id. Como aún no sabemos cuáles son "nuestros" marcadores
+    // viejos, la estrategia más segura es limpiar el objeto completo y dejar
+    // que el servidor reenvíe las posiciones de todos.
+    Object.keys(marcadores).forEach(id => {
+        try { capa.removeLayer(marcadores[id]); } catch (_) {}
+        delete marcadores[id];
+    });
+
+    // Reiniciamos el flag para que la cámara vuele de nuevo a nuestra posición.
+    primerAjuste = true;
+    siguiendoUsuario = false;
 });
 
 // =======================================================
