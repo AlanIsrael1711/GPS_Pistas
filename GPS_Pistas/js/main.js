@@ -29,8 +29,6 @@ const iconoUsuarioGoogleMaps = L.divIcon({
     iconAnchor: [20, 20] 
 });
 
-// [CORRECCIÓN]: Eliminamos la transición de CSS. 
-// Las animaciones de CSS peleaban con el renderizado a 60fps de JS causando los "saltos" y tartamudeos.
 const styleIcono = document.createElement('style');
 styleIcono.innerHTML = `
     .marcador-usuario-direccion svg {
@@ -366,13 +364,15 @@ window.enfocarUsuario = function() {
 // 7. FILTROS, BRÚJULA ULTRA-ESTABLE Y ROTACIÓN AUTOMÁTICA
 // =======================================================
 
-const CALIBRACION_FRENTE = 0; 
+// [CORRECCIÓN]: 180 Invierte la lectura para que "Hacia Adelante" 
+// sea lo que apunta la cámara trasera del teléfono, no la pantalla.
+const CALIBRACION_FRENTE = 180; 
 
 let anguloCrudo = null;    
 let anguloSuavizado = null;
 let modoAutoRotacion = false; 
 let ultimoAnguloRenderizado = -1;
-let velocidadSuavizado = 0.01; // Velocidad dinámica
+let velocidadSuavizado = 0.01; 
 
 function mostrarNotificacion(mensaje) {
     let toast = document.getElementById('toast-giroscopio');
@@ -466,6 +466,7 @@ function handlerOrientacion(event) {
     }
 
     if (heading !== undefined && heading !== null) {
+        // Al sumar los 180° aquí, arreglamos tanto el icono de "Google Maps" como el giro del mapa completo
         heading = (heading + CALIBRACION_FRENTE) % 360;
         
         anguloCrudo = heading;
@@ -483,17 +484,11 @@ function bucleSuavizadoYRotacion() {
         while (diferencia > 180) diferencia -= 360;
         while (diferencia < -180) diferencia += 360;
 
-        // [NUEVO] FILTRO DINÁMICO
-        // Analizamos qué tan brusco es el cambio del sensor.
         if (Math.abs(diferencia) > 10) {
-            // El usuario claramente dio una vuelta a la esquina (Movimiento rápido 8%)
             velocidadSuavizado = 0.08;
         } else if (Math.abs(diferencia) > 3) {
-            // Un giro ligero intencional (Movimiento moderado 3%)
             velocidadSuavizado = 0.03;
         } else {
-            // Un micromovimiento o temblor de mano (Extremadamente denso y lento 0.5%)
-            // Esto aniquila el "ruido" que hace que el mapa tiemble
             velocidadSuavizado = 0.005;
         }
 
@@ -502,15 +497,12 @@ function bucleSuavizadoYRotacion() {
         if (anguloSuavizado < 0) anguloSuavizado += 360;
         if (anguloSuavizado >= 360) anguloSuavizado -= 360;
         
-        // Conservamos solo 1 decimal para que sea matemáticamente estable sin tartamudear
         let anguloFinal = parseFloat(anguloSuavizado.toFixed(1));
 
         let difRender = anguloFinal - ultimoAnguloRenderizado;
         while (difRender > 180) difRender -= 360;
         while (difRender < -180) difRender += 360;
 
-        // Solo le mandamos la orden al renderizador gráfico si el cambio supera los 0.5 grados.
-        // Combinado con la desactivación de CSS, esto vuelve el giro hiper suave.
         if (Math.abs(difRender) >= 0.5 || ultimoAnguloRenderizado === -1) {
             ultimoAnguloRenderizado = anguloFinal;
 
