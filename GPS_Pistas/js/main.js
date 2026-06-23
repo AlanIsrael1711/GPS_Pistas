@@ -186,10 +186,18 @@ window.irHacia = function(lat, lng, nombreLugar) {
 };
 
 function procesarSeleccionTemporal(lat, lng, nombre) {
-    if (window.geojsonDataPrincipalPermitida) {
+    // Si la selección viene de un POI conocido (zona de interés, edificio, terminal),
+    // zonaPermitidaTemporal ya está fijado y no necesitamos validar contra el perímetro.
+    // Solo validamos perímetro cuando el usuario toca un punto libre en el mapa.
+    if (!window.zonaPermitidaTemporal && window.geojsonDataPrincipalPermitida) {
         const puntoClick = turf.point([lng, lat]);
-        const perimetro = window.geojsonDataPrincipalPermitida.features ? window.geojsonDataPrincipalPermitida.features[0] : window.geojsonDataPrincipalPermitida;
-        if (!turf.booleanPointInPolygon(puntoClick, perimetro)) { alert("Destino fuera de límite."); return; }
+        const perimetro = window.geojsonDataPrincipalPermitida.features
+            ? window.geojsonDataPrincipalPermitida.features[0]
+            : window.geojsonDataPrincipalPermitida;
+        if (!turf.booleanPointInPolygon(puntoClick, perimetro)) {
+            alert("Destino fuera de límite.");
+            return;
+        }
     }
 
     if (typeof window.esUbicacionValida === 'function' && !window.esUbicacionValida(lat, lng)) {
@@ -350,22 +358,7 @@ let usandoAbsoluto = false;
 let anguloCrudo = null;
 let anguloSuavizado = null;
 let ultimoAnguloRenderizado = -1;
-let modoAutoRotacion = false; // [RESTAURADO] Variable que controla el toggle de la brújula
-
-function mostrarNotificacion(mensaje) {
-    let toast = document.getElementById('toast-giroscopio');
-    if (!toast) {
-        toast = document.createElement('div');
-        toast.id = 'toast-giroscopio';
-        toast.className = 'shadow-lg';
-        toast.style.cssText = 'position: fixed; top: 100px; left: 50%; transform: translateX(-50%) scale(0.95); background-color: #0d6efd; color: white; padding: 10px 20px; border-radius: 30px; font-weight: 600; font-size: 14px; z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.4s ease, transform 0.4s ease; display: flex; align-items: center; gap: 8px;';
-        document.body.appendChild(toast);
-    }
-    toast.innerHTML = `<i class="bi bi-compass-fill"></i> ${mensaje}`;
-    toast.style.opacity = '1'; toast.style.transform = 'translateX(-50%) scale(1)';
-    clearTimeout(window.toastTimer);
-    window.toastTimer = setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) scale(0.95)'; }, 1500); 
-}
+// modoAutoRotacion eliminado: la brújula solo resetea el norte del mapa.
 
 const chkEvitarPistas = document.getElementById('chkEvitarPistas');
 if (chkEvitarPistas) {
@@ -385,26 +378,17 @@ document.addEventListener('DOMContentLoaded', () => {
         btnEnfoque.addEventListener('click', () => { window.enfocarUsuario(); });
     }
 
-    // [CORRECCIÓN] Se restauró la lógica original de TOGGLE para la brújula
+    // Brújula: resetea el mapa a la orientación norte original (bearing 0).
     const btnBrujula = document.getElementById('btnBrujula');
     if (btnBrujula) {
         btnBrujula.addEventListener('click', () => {
-            modoAutoRotacion = !modoAutoRotacion;
-            
-            if (modoAutoRotacion) {
-                btnBrujula.classList.remove('bg-white');
-                btnBrujula.classList.add('bg-primary');
-                btnBrujula.innerHTML = '<i class="bi bi-compass-fill fs-4 text-white"></i>';
-                mostrarNotificacion("Rotación de mapa activada");
-                window.enfocarUsuario();
-            } else {
-                btnBrujula.classList.remove('bg-primary');
-                btnBrujula.classList.add('bg-white');
-                btnBrujula.innerHTML = '<i class="bi bi-compass fs-4 text-dark"></i>';
-                
-                if (window.map && window.map.setBearing) window.map.setBearing(0, { animate: true, duration: 0.5 });
-                ultimoAnguloRenderizado = -1; 
+            if (window.map && typeof window.map.setBearing === 'function') {
+                window.map.setBearing(0, { animate: true, duration: 0.5 });
             }
+            // Forzamos re-render del icono con bearing ya en 0 tras la animación.
+            setTimeout(() => {
+                if (ultimoAnguloRenderizado !== -1) actualizarRotacionIcono(ultimoAnguloRenderizado);
+            }, 520);
         });
     }
 
@@ -465,13 +449,8 @@ function bucleIconoSuave() {
             const anguloEntero = Math.round(anguloSuavizado);
             ultimoAnguloRenderizado = anguloEntero;
             
-            // [CORRECCIÓN] Restaurada la lógica que gira todo el mapa si el botón de brújula está encendido
-            if (modoAutoRotacion && window.map && typeof window.map.setBearing === 'function') {
-                window.map.setBearing(-anguloEntero);
-                actualizarRotacionIcono(0); 
-            } else {
-                actualizarRotacionIcono(anguloEntero);
-            }
+            // Solo actualiza el icono; el mapa nunca rota con el giroscopio.
+            actualizarRotacionIcono(anguloEntero);
         }
     }
     requestAnimationFrame(bucleIconoSuave);
