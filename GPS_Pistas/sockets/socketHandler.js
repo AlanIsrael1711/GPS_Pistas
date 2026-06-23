@@ -3,8 +3,9 @@ module.exports = (io) => {
         // Almacenar o registrar conexiones si es necesario
         
         socket.on('actualizar-ubicacion', (coords) => {
-            // Retransmite la ubicación a todos los clientes conectados
-            io.emit('dibujar-ubicacion', { id: socket.id, ...coords });
+            // Solo devuelve la ubicación al mismo usuario que la envió.
+            // Ningún otro cliente recibe la posición ajena.
+            socket.emit('dibujar-ubicacion', { id: socket.id, ...coords });
         });
 
         socket.on('disconnect', () => {
