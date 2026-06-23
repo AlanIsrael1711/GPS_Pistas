@@ -1,14 +1,14 @@
 module.exports = (io) => {
     io.on('connection', (socket) => {
+        // Almacenar o registrar conexiones si es necesario
         
         socket.on('actualizar-ubicacion', (coords) => {
-            // [CORRECCIÓN] socket.emit responde SOLO al usuario que envió la petición.
-            // Eliminamos io.emit para evitar retransmitir a otras pestañas o dispositivos.
-            socket.emit('dibujar-ubicacion', coords);
+            // Retransmite la ubicación a todos los clientes conectados
+            io.emit('dibujar-ubicacion', { id: socket.id, ...coords });
         });
 
         socket.on('disconnect', () => {
-            // Ya no notificamos desconexiones porque no hay un entorno multijugador
+            io.emit('usuario-desconectado', socket.id);
         });
     });
 };
