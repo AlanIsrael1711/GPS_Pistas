@@ -7,7 +7,7 @@ const marcadores = {};
 let primerAjuste = true;
 let trayectoria = null;
 let marcador = null; 
-let siguiendoUsuario = false; // [NUEVO] Controla si la cámara sigue al usuario
+let siguiendoUsuario = false; // Controla si la cámara sigue al usuario
 
 // =======================================================
 // [NUEVO] ICONO DEL USUARIO (Estilo Google Maps con Cono)
@@ -30,29 +30,11 @@ const iconoUsuarioGoogleMaps = L.divIcon({
     iconAnchor: [20, 20] 
 });
 
-// [NUEVO] Icono estético para el destino temporal (Pin rojo cereza)
-const iconoDestinoTemporalSVG = `
-<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-  <path d="M16 0c-5.523 0-10 4.477-10 10 0 7.5 10 22 10 22s10-14.5 10-22c0-5.523-4.477-10-10-10z" fill="#ef4444"/>
-  <circle cx="16" cy="10" r="4" fill="white"/>
-</svg>
-`;
-
-const iconoDestinoTemporalPersonalizado = L.divIcon({
-    className: 'marcador-destino-temporal',
-    html: iconoDestinoTemporalSVG,
-    iconSize: [32, 32],
-    iconAnchor: [16, 32]
-});
-
 const styleIcono = document.createElement('style');
 styleIcono.innerHTML = `
     .marcador-usuario-direccion svg {
         transition: none !important; 
         will-change: transform;
-    }
-    .marcador-destino-temporal svg {
-        filter: drop-shadow(0px 4px 3px rgba(0,0,0,0.3)); /* Sombra estética */
     }
 `;
 document.head.appendChild(styleIcono);
@@ -130,33 +112,48 @@ if (navigator.geolocation) {
 
 socket.on('dibujar-ubicacion', (data) => {
     const { id, lat, lng } = data;
-    
-    // [MODIFICACIÓN CLAVE] Ignoramos por completo las ubicaciones de otros usuarios
-    if (id !== socket.id) return;
-
     const capaDestino = (window.capas && window.capas.usuarios) ? window.capas.usuarios : window.map;
+
+    // Si el marcador existe pero ya no está en ninguna capa (por zoom, reinicio de capa,
+    // o pantalla apagada), lo eliminamos para que se recree limpio.
+    if (marcadores[id] && !window.map.hasLayer(marcadores[id])) {
+        try { capaDestino.removeLayer(marcadores[id]); } catch (_) {}
+        delete marcadores[id];
+    }
 
     if (marcadores[id]) {
         marcadores[id].setLatLng([lat, lng]);
-        if (marcador && trayectoria) {
+        if (id === socket.id && marcador && trayectoria) {
             trazarRutaInteligente(marcadores[id].getLatLng(), marcador.getLatLng());
         }
     } else {
-        // Solo creamos el marcador con el cono azul para el usuario local
-        marcadores[id] = L.marker([lat, lng], { icon: iconoUsuarioGoogleMaps }).addTo(capaDestino);
+        const iconoDestino = (window.iconos && window.iconos.destinoTemporal) ? window.iconos.destinoTemporal : new L.Icon.Default();
+        const iconoAsignar = (id === socket.id) ? iconoUsuarioGoogleMaps : iconoDestino;
         
-        if (marcador) window.enfocarUsuario();
+        marcadores[id] = L.marker([lat, lng], { icon: iconoAsignar }).addTo(capaDestino);
+        
+        if (id === socket.id && marcador) window.enfocarUsuario();
     }
 
-    // [NUEVO] Motor de Auto-Seguimiento de Cámara
-    if (siguiendoUsuario && window.map) {
-        window.map.panTo([lat, lng], { animate: true, duration: 1.0, easeLinearity: 0.5 });
+    // Motor de Auto-Seguimiento de Cámara
+    // Solo mueve la cámara si el usuario se alejó más de ~8 metros del centro
+    // visible, evitando saltos bruscos por cada pequeña actualización del GPS.
+    if (siguiendoUsuario && id === socket.id && window.map) {
+        const centroActual = window.map.getCenter();
+        const distCentro = window.map.distance(centroActual, [lat, lng]);
+        if (distCentro > 8) {
+            window.map.panTo([lat, lng], {
+                animate: true,
+                duration: 1.5,       // más lento = más suave
+                easeLinearity: 0.25  // curva de aceleración más gentil
+            });
+        }
     }
 
-    if (primerAjuste) {
+    if (id === socket.id && primerAjuste) {
         window.map.flyTo([lat, lng], 16, { animate: true, duration: 2 });
         primerAjuste = false;
-        siguiendoUsuario = true; // Empieza siguiendo al usuario la primera vez
+        siguiendoUsuario = true; 
     }
 });
 
@@ -168,6 +165,25 @@ socket.on('usuario-desconectado', (id) => {
     }
 });
 
+// Al reconectarse (pantalla apagada, red caída, etc.) el socket.id cambia.
+// Limpiamos TODOS los marcadores propios anteriores para que no queden duplicados.
+socket.on('connect', () => {
+    const capa = (window.capas && window.capas.usuarios) ? window.capas.usuarios : window.map;
+
+    // Borramos cualquier marcador que no sea de otro usuario conocido por el
+    // nuevo socket.id. Como aún no sabemos cuáles son "nuestros" marcadores
+    // viejos, la estrategia más segura es limpiar el objeto completo y dejar
+    // que el servidor reenvíe las posiciones de todos.
+    Object.keys(marcadores).forEach(id => {
+        try { capa.removeLayer(marcadores[id]); } catch (_) {}
+        delete marcadores[id];
+    });
+
+    // Reiniciamos el flag para que la cámara vuele de nuevo a nuestra posición.
+    primerAjuste = true;
+    siguiendoUsuario = false;
+});
+
 // =======================================================
 // 4. INTERACCIÓN Y SELECCIÓN DE DESTINOS
 // =======================================================
@@ -175,7 +191,15 @@ let marcadorTemp = null;
 let nombreLugarTemporal = ""; 
 let trazandoRuta = false; 
 
+// Guardamos el tiempo del último dragend para ignorar el 'click' que
+// Leaflet dispara al soltar el dedo después de arrastrar el mapa.
+let _ultimoDragEnd = 0;
+window.map.on('dragend', () => { _ultimoDragEnd = Date.now(); });
+
 window.map.on('click', function(e) {
+    // Ignorar si el evento viene inmediatamente después de un drag (< 300 ms).
+    if (Date.now() - _ultimoDragEnd < 300) return;
+
     const panel = document.getElementById('panelDestino');
     if (!panel.classList.contains('oculto')) {
         panel.classList.add('oculto');
@@ -212,8 +236,7 @@ function procesarSeleccionTemporal(lat, lng, nombre) {
     if (marcadorTemp) {
         marcadorTemp.setLatLng([lat, lng]);
     } else {
-        // [MODIFICACIÓN] Usamos el pin rojo cereza para los toques en el mapa
-        marcadorTemp = L.marker([lat, lng], { icon: iconoDestinoTemporalPersonalizado }).addTo(window.map);
+        marcadorTemp = L.marker([lat, lng], { icon: window.iconos.destinoTemporal }).addTo(window.map);
     }
 
     document.getElementById('bs-titulo').innerText = nombre;
@@ -382,46 +405,27 @@ function dibujarLineaEnMapa(puntos) {
 window.enfocarUsuario = function() {
     const miPosicion = marcadores[socket.id];
     if (miPosicion && window.map) {
-        siguiendoUsuario = true; // Reactivamos el seguimiento automático al apretar el botón
+        siguiendoUsuario = true; 
         window.map.flyTo(miPosicion.getLatLng(), 18, { animate: true, duration: 1.5 });
         const btnEnfoque = document.getElementById('btnEnfocarGps');
-        if (btnEnfoque) btnEnfoque.style.display = 'none'; // Escondemos la mira hasta que mueva el mapa
+        if (btnEnfoque) btnEnfoque.style.display = 'none';
     }
 };
 
 // =======================================================
-// 7. FILTROS, BRÚJULA ULTRA-ESTABLE Y ROTACIÓN AUTOMÁTICA
+// 7. GIROSCOPIO — ICONO SUAVE (sin rotación de mapa)
 // =======================================================
 
-// [CORRECCIÓN]: Regresado a 0. Esto empata la dirección del hardware con la cámara trasera.
-const CALIBRACION_FRENTE = 0; 
+// Offset de la cámara trasera. 0 = sin corrección (Pixel, Samsung reciente).
+// Cambia a -90 o 90 si el cono apunta al lado equivocado en tu dispositivo.
+const CALIBRACION_FRENTE = 0;
 
-let anguloCrudo = null;    
+// Preferimos deviceorientationabsolute sobre el genérico cuando esté disponible.
+let usandoAbsoluto = false;
+
+let anguloCrudo     = null;
 let anguloSuavizado = null;
-let velocidadAngular = 0; // Para la física del resorte
-let modoAutoRotacion = false; 
 let ultimoAnguloRenderizado = -1;
-
-function mostrarNotificacion(mensaje) {
-    let toast = document.getElementById('toast-giroscopio');
-    if (!toast) {
-        toast = document.createElement('div');
-        toast.id = 'toast-giroscopio';
-        toast.className = 'shadow-lg';
-        toast.style.cssText = 'position: fixed; top: 100px; left: 50%; transform: translateX(-50%) scale(0.95); background-color: #0d6efd; color: white; padding: 10px 20px; border-radius: 30px; font-weight: 600; font-size: 14px; z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.4s ease, transform 0.4s ease; display: flex; align-items: center; gap: 8px;';
-        document.body.appendChild(toast);
-    }
-    
-    toast.innerHTML = `<i class="bi bi-compass-fill"></i> ${mensaje}`;
-    toast.style.opacity = '1';
-    toast.style.transform = 'translateX(-50%) scale(1)';
-
-    clearTimeout(window.toastTimer);
-    window.toastTimer = setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateX(-50%) scale(0.95)';
-    }, 1500); 
-}
 
 const chkEvitarPistas = document.getElementById('chkEvitarPistas');
 if (chkEvitarPistas) {
@@ -442,118 +446,119 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnEnfoque = document.getElementById('btnEnfocarGps');
     if (btnEnfoque && window.map) {
         window.map.on('dragstart', () => { 
-            siguiendoUsuario = false; // El usuario tomó el control del mapa, soltamos la cámara
-            btnEnfoque.style.display = 'flex'; // Mostramos el botón de GPS para regresar
+            siguiendoUsuario = false; 
+            btnEnfoque.style.display = 'flex'; 
         });
-        btnEnfoque.addEventListener('click', () => { window.enfocarUsuario(); inicializarBrujula(); });
+        btnEnfoque.addEventListener('click', () => { window.enfocarUsuario(); });
     }
 
+    // Botón brújula: resetea el mapa al norte y al zoom por defecto (16).
     const btnBrujula = document.getElementById('btnBrujula');
     if (btnBrujula) {
         btnBrujula.addEventListener('click', () => {
-            modoAutoRotacion = !modoAutoRotacion;
-            
-            if (modoAutoRotacion) {
-                btnBrujula.classList.remove('bg-white');
-                btnBrujula.classList.add('bg-primary');
-                btnBrujula.innerHTML = '<i class="bi bi-compass-fill fs-4 text-white"></i>';
-                mostrarNotificacion("Rotación de mapa activada");
-                window.enfocarUsuario();
-            } else {
-                btnBrujula.classList.remove('bg-primary');
-                btnBrujula.classList.add('bg-white');
-                btnBrujula.innerHTML = '<i class="bi bi-compass fs-4 text-dark"></i>';
-                
-                if (window.map && window.map.setBearing) window.map.setBearing(0);
-                ultimoAnguloRenderizado = -1; 
+            if (window.map) {
+                // Vuelve el bearing a 0 (norte arriba) con animación suave.
+                if (typeof window.map.setBearing === 'function') {
+                    window.map.setBearing(0, { animate: true, duration: 0.5 });
+                }
+                // Fuerza re-render del icono con el bearing ya en 0.
+                setTimeout(() => {
+                    if (ultimoAnguloRenderizado !== -1) {
+                        actualizarRotacionIcono(ultimoAnguloRenderizado);
+                    }
+                }, 520);
             }
         });
     }
 
-    inicializarBrujula();
-    requestAnimationFrame(bucleSuavizadoYRotacion);
+    iniciarGiroscopio();
+    requestAnimationFrame(bucleIconoSuave);
 });
 
-function inicializarBrujula() {
-    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission().then(p => { 
-            if (p === 'granted') escucharOrientacion(); 
-            else alert("Se requiere acceso al giroscopio para orientar el mapa.");
-        }).catch(console.error);
-    } else escucharOrientacion();
+// Solicita permiso en iOS y arranca los listeners del sensor.
+function iniciarGiroscopio() {
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+        // iOS 13+ requiere permiso explícito.
+        DeviceOrientationEvent.requestPermission()
+            .then(p => { if (p === 'granted') escucharOrientacion(); })
+            .catch(console.error);
+    } else {
+        escucharOrientacion();
+    }
 }
 
 function escucharOrientacion() {
-    window.addEventListener('deviceorientationabsolute', handlerOrientacion, true);
-    window.addEventListener('deviceorientation', handlerOrientacion, true);
+    // Preferimos el evento absoluto (Chrome/Android): referenciado al norte magnético real.
+    window.addEventListener('deviceorientationabsolute', (e) => {
+        usandoAbsoluto = true;
+        handlerOrientacion(e);
+    }, true);
+
+    // Fallback para Safari iOS, que no emite 'deviceorientationabsolute'.
+    window.addEventListener('deviceorientation', (e) => {
+        if (!usandoAbsoluto) handlerOrientacion(e);
+    }, true);
 }
 
 function handlerOrientacion(event) {
     let heading;
-    if (event.webkitCompassHeading) {
+
+    if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
+        // iOS Safari: heading ya viene referenciado a la cámara trasera en portrait.
         heading = event.webkitCompassHeading;
     } else if (event.alpha !== null) {
-        heading = 360 - event.alpha;
+        // Android: alpha es el ángulo del eje Y respecto al norte.
+        // La cámara trasera en portrait apunta en -Y, por eso invertimos.
+        heading = (360 - event.alpha) % 360;
     }
 
     if (heading !== undefined && heading !== null) {
-        // [CORRECCIÓN] Alineamos con la cámara trasera del dispositivo
-        heading = (heading + CALIBRACION_FRENTE) % 360;
-        
+        heading = ((heading + CALIBRACION_FRENTE) % 360 + 360) % 360;
         anguloCrudo = heading;
+        // En la primera lectura inicializamos el suavizado en el ángulo real
+        // para evitar que el icono "gire desde 0" al arrancar.
         if (anguloSuavizado === null) anguloSuavizado = heading;
     }
 }
 
 // =======================================================
-// [CORE] FÍSICA DE RESORTE TIPO WAZE (Spring & Damper)
+// BUCLE RAF: suavizado adaptativo + zona muerta → icono
 // =======================================================
-function bucleSuavizadoYRotacion() {
+function bucleIconoSuave() {
     if (anguloCrudo !== null && anguloSuavizado !== null) {
-        
+
+        // Diferencia más corta en el círculo (−180 … +180).
         let diferencia = anguloCrudo - anguloSuavizado;
-        while (diferencia > 180) diferencia -= 360;
+        while (diferencia >  180) diferencia -= 360;
         while (diferencia < -180) diferencia += 360;
 
-        // FÍSICA APLICADA: 
-        // rigidez = qué tan fuerte atrae el objetivo a la cámara (bajo = se siente "pesado")
-        // amortiguacion = fricción que frena las oscilaciones y temblores
-        let rigidez = 0.05;       
-        let amortiguacion = 0.85; 
+        // Factor de suavizado adaptativo:
+        //   • < 5°  → casi nada (ruido de pulso / mano en reposo)
+        //   • 5–20° → suave pero perceptible (giro lento al caminar)
+        //   • > 20° → más rápido (giro real al doblar una esquina)
+        let alpha;
+        const abs = Math.abs(diferencia);
+        if      (abs < 5)  alpha = 0.008;
+        else if (abs < 20) alpha = 0.022;
+        else               alpha = 0.060;
 
-        // Si hay un giro brusco intencional (ej. dar vuelta en una esquina > 25 grados)
-        if (Math.abs(diferencia) > 25) {
-            rigidez = 0.15;
-            amortiguacion = 0.75;
-        }
-
-        velocidadAngular += diferencia * rigidez;
-        velocidadAngular *= amortiguacion;
-        anguloSuavizado += velocidadAngular; 
-        
-        if (anguloSuavizado < 0) anguloSuavizado += 360;
+        anguloSuavizado += diferencia * alpha;
+        if (anguloSuavizado <   0) anguloSuavizado += 360;
         if (anguloSuavizado >= 360) anguloSuavizado -= 360;
-        
-        // Truncamos a 1 decimal para que la matemática fluya exacto
-        let anguloFinal = parseFloat(anguloSuavizado.toFixed(1));
 
-        let difRender = anguloFinal - ultimoAnguloRenderizado;
-        while (difRender > 180) difRender -= 360;
+        // Zona muerta de 3°: descartamos micro-temblores antes de tocar el DOM.
+        let difRender = anguloSuavizado - ultimoAnguloRenderizado;
+        while (difRender >  180) difRender -= 360;
         while (difRender < -180) difRender += 360;
 
-        // ZONA MUERTA GRÁFICA (0.2 grados) para proteger la GPU y mantener el mapa súper estable
-        if (Math.abs(difRender) >= 0.2 || ultimoAnguloRenderizado === -1) {
-            ultimoAnguloRenderizado = anguloFinal;
-
-            if (modoAutoRotacion && window.map && window.map.setBearing) {
-                window.map.setBearing(anguloFinal);
-                actualizarRotacionIcono(0);
-            } else {
-                actualizarRotacionIcono(anguloFinal);
-            }
+        if (Math.abs(difRender) >= 3 || ultimoAnguloRenderizado === -1) {
+            const anguloEntero = Math.round(anguloSuavizado);
+            ultimoAnguloRenderizado = anguloEntero;
+            actualizarRotacionIcono(anguloEntero);
         }
     }
-    requestAnimationFrame(bucleSuavizadoYRotacion);
+    requestAnimationFrame(bucleIconoSuave);
 }
 
 function actualizarRotacionIcono(angulo) {
@@ -561,6 +566,9 @@ function actualizarRotacionIcono(angulo) {
     if (miMarcador && miMarcador._icon) {
         const svgElement = miMarcador._icon.querySelector('svg');
         if (svgElement) {
+            // El icono vive DENTRO del contenedor del mapa, que Leaflet ya rota
+            // cuando el usuario gira el mapa. Por eso el ángulo del giroscopio
+            // se aplica directo: el mapa se encarga de la compensación visual.
             svgElement.style.transform = `rotateZ(${angulo}deg)`;
         }
     }
@@ -592,5 +600,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.map.on('rotateend', desactivarModoMovimiento);
         window.map.on('dragend', desactivarModoMovimiento);
         window.map.on('zoomend', desactivarModoMovimiento);
+
     }
 });
