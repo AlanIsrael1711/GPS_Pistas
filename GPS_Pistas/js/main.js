@@ -566,18 +566,10 @@ function actualizarRotacionIcono(angulo) {
     if (miMarcador && miMarcador._icon) {
         const svgElement = miMarcador._icon.querySelector('svg');
         if (svgElement) {
-            // Los marcadores DivIcon viven en leaflet-marker-pane, que NO rota
-            // con el mapa (solo rotan los tiles). Por eso hay que compensar
-            // manualmente el bearing actual del mapa:
-            //   anguloCSS = anguloDispositivo - bearingMapa
-            // Ejemplo: apunto al Norte (0°) y el mapa está girado 45° →
-            //   CSS = 0 - 45 = -45°, que en pantalla apunta exactamente al Norte
-            //   dentro del mapa rotado. Igual que Google Maps.
-            const bearing = (window.map && typeof window.map.getBearing === 'function')
-                ? window.map.getBearing()
-                : 0;
-            const anguloCSS = ((angulo - bearing) % 360 + 360) % 360;
-            svgElement.style.transform = `rotateZ(${anguloCSS}deg)`;
+            // El icono vive DENTRO del contenedor del mapa, que Leaflet ya rota
+            // cuando el usuario gira el mapa. Por eso el ángulo del giroscopio
+            // se aplica directo: el mapa se encarga de la compensación visual.
+            svgElement.style.transform = `rotateZ(${angulo}deg)`;
         }
     }
 }
@@ -608,14 +600,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.map.on('rotateend', desactivarModoMovimiento);
         window.map.on('dragend', desactivarModoMovimiento);
         window.map.on('zoomend', desactivarModoMovimiento);
-
-        // Mientras el usuario gira el mapa con los dedos, actualizamos el icono
-        // en cada frame para que siempre apunte a la dirección correcta.
-        window.map.on('rotate', () => {
-            if (ultimoAnguloRenderizado !== -1) {
-                actualizarRotacionIcono(ultimoAnguloRenderizado);
-            }
-        });
 
     }
 });
