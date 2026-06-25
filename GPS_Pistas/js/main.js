@@ -156,12 +156,12 @@ function procesarSeleccionTemporal(lat, lng, nombre) {
             const puntoClick = turf.point([lng, lat]);
             const perimetro = window.geojsonDataPrincipalPermitida.features ? window.geojsonDataPrincipalPermitida.features[0] : window.geojsonDataPrincipalPermitida;
             if (!turf.booleanPointInPolygon(puntoClick, perimetro)) {
-                alert("Destino fuera de límite."); return;
+                return;
             }
         }
 
         if (typeof window.esUbicacionValida === 'function' && !window.esUbicacionValida(lat, lng)) {
-            alert("Punto Inválido: Área restringida."); return;
+            return;
         }
     }
 
