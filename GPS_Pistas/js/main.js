@@ -93,7 +93,7 @@ socket.on('dibujar-ubicacion', (data) => {
         const iconoDestino = (window.iconos && window.iconos.destinoTemporal) ? window.iconos.destinoTemporal : new L.Icon.Default();
         const iconoAsignar = (id === socket.id) ? iconoPropio : iconoDestino;
         
-        marcadores[id] = L.marker([lat, lng], { icon: iconoAsignar }).addTo(capaDestino);
+        marcadores[id] = L.marker([lat, lng], { icon: iconoAsignar || iconoAsignar }).addTo(capaDestino);
         
         if (id === socket.id && marcador) window.enfocarUsuario();
     }
@@ -195,7 +195,7 @@ window.confirmarNuevoDestino = function() {
             if (!trazandoRuta && marcador) {
                 window.capas.destinos.removeLayer(marcador);
                 marcador = null;
-                if (trayectoria) { window.capas.trayectorias.removeLayer(trayectoria); trayectoria = null; }
+                if (trayതിരെ) { window.capas.trayectorias.removeLayer(trayectoria); trayectoria = null; }
             }
             trazandoRuta = false; 
         });
@@ -306,7 +306,6 @@ function trazarRutaInteligente(inicioGPS, finGPS) {
     dibujarLineaEnMapa(pathCoords.map(pt => [pt.lat, pt.lng]));
 }
 
-
 // =======================================================
 // 6. FUNCIONES AUXILIARES Y DIBUJO
 // =======================================================
@@ -337,7 +336,7 @@ window.enfocarUsuario = function() {
 };
 
 // =======================================================
-// 7. FILTROS, BRÚJULA Y ROTACIÓN AUTOMÁTICA DEL MAPA
+// 7. FILTROS, BRÚJULA Y REORIENTACIÓN AL NORTE
 // =======================================================
 const chkEvitarPistas = document.getElementById('chkEvitarPistas');
 if (chkEvitarPistas) {
@@ -354,79 +353,57 @@ if (chkEvitarPistas) {
     });
 }
 
-let anguloActual = 0;
-let modoAutoRotacion = false; // [NUEVO] Estado de la cámara Waze
+function mostrarNotificacionToast(mensaje) {
+    let toast = document.getElementById('toast-brújula');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast-brújula';
+        toast.className = 'shadow-lg';
+        toast.style.cssText = 'position: fixed; top: 100px; left: 50%; transform: translateX(-50%) scale(0.95); background-color: #2563eb; color: white; padding: 10px 20px; border-radius: 30px; font-weight: 600; font-size: 14px; z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.4s ease, transform 0.4s ease; display: flex; align-items: center; gap: 8px;';
+        document.body.appendChild(toast);
+    }
+    toast.innerHTML = `<i class="bi bi-compass-fill"></i> ${mensaje}`;
+    toast.style.opacity = '1'; 
+    toast.style.transform = 'translateX(-50%) scale(1)';
+    clearTimeout(window.toastTimer);
+    window.toastTimer = setTimeout(() => { 
+        toast.style.opacity = '0'; 
+        toast.style.transform = 'translateX(-50%) scale(0.95)'; 
+    }, 1500); 
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     const btnEnfoque = document.getElementById('btnEnfocarGps');
     if (btnEnfoque && window.map) {
         window.map.on('dragstart', () => { btnEnfoque.style.display = 'block'; });
-        btnEnfoque.addEventListener('click', () => { window.enfocarUsuario(); inicializarBrujula(); });
+        btnEnfoque.addEventListener('click', () => { window.enfocarUsuario(); });
     }
 
-    // [NUEVO] Control del botón de Brújula (Efecto de pulsación rápida)
+    // [CORREGIDO] Botón de Brújula: Un simple reorientador al Norte puro (Bearing 0) con efecto táctil
     const btnBrujula = document.getElementById('btnBrujula');
     if (btnBrujula) {
         btnBrujula.addEventListener('click', () => {
-            // 1. Efecto visual: Se pone azul al instante de presionarlo
+            // 1. Efecto visual: Se pone azul al instante
             btnBrujula.classList.remove('bg-white');
             btnBrujula.classList.add('bg-primary');
             btnBrujula.innerHTML = '<i class="bi bi-compass fs-4 text-white"></i>';
             
-            // 2. Regresa a blanco después de 200ms (dando la sensación de un clic físico)
+            // 2. Regresa a blanco a los 200ms
             setTimeout(() => {
                 btnBrujula.classList.remove('bg-primary');
                 btnBrujula.classList.add('bg-white');
                 btnBrujula.innerHTML = '<i class="bi bi-compass fs-4 text-dark"></i>';
             }, 200);
 
-            // 3. Lógica interna: Activar rotación o regresar el mapa al Norte (0 grados)
-            modoAutoRotacion = !modoAutoRotacion;
-            if (modoAutoRotacion) {
-                if (window.map && window.map.setBearing) window.map.setBearing(anguloActual);
-            } else {
-                if (window.map && window.map.setBearing) window.map.setBearing(0);
+            // 3. Regresa el mapa al Norte exacto sin importar altura/zoom
+            if (window.map && typeof window.map.setBearing === 'function') {
+                window.map.setBearing(0, { animate: true, duration: 0.5 });
+                mostrarNotificacionToast("Orientación restablecida al Norte");
             }
         });
     }
-
-    inicializarBrujula();
 });
 
-function inicializarBrujula() {
-    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission().then(p => { if (p === 'granted') escucharOrientacion(); }).catch(console.error);
-    } else escucharOrientacion();
-}
-
-function escucharOrientacion() {
-    window.addEventListener('deviceorientationabsolute', handlerOrientacion, true);
-    window.addEventListener('deviceorientation', handlerOrientacion, true);
-}
-
-function handlerOrientacion(event) {
-    let heading = event.webkitCompassHeading ? event.webkitCompassHeading : (event.alpha !== null ? 360 - event.alpha : null);
-    if (heading !== null) {
-        anguloActual = heading;
-        actualizarRotacionIcono();
-
-        // [NUEVO] Si el modo Waze está activo, girar todo el mapa
-        if (modoAutoRotacion && window.map && window.map.setBearing) {
-            window.map.setBearing(anguloActual);
-        }
-    }
-}
-
-function actualizarRotacionIcono() {
-    const miMarcador = marcadores[socket.id];
-    if (miMarcador && miMarcador._icon) {
-        const currentTransform = miMarcador._icon.style.transform;
-        if (!currentTransform) return;
-        const baseTransform = currentTransform.replace(/ rotateZ\([^)]+\)/g, '');
-        miMarcador._icon.style.transform = `${baseTransform} rotateZ(${anguloActual}deg)`;
-        miMarcador._icon.style.transition = 'transform 0.15s ease-out';
-    }
-}
 // =======================================================
 // 8. OPTIMIZADOR DE RENDIMIENTO VISUAL (ANTI-LAG)
 // =======================================================
@@ -435,26 +412,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const mapaDOM = document.getElementById('map');
         let temporizadorMovimiento;
 
-        // Función que apaga los textos temporalmente
         function activarModoMovimiento() {
             mapaDOM.classList.add('mapa-en-movimiento');
             clearTimeout(temporizadorMovimiento);
         }
 
-        // Función que vuelve a encender los textos tras detenerse
         function desactivarModoMovimiento() {
-            // Le damos 200ms extra para asegurar que el giro físico ya terminó
             temporizadorMovimiento = setTimeout(() => {
                 mapaDOM.classList.remove('mapa-en-movimiento');
             }, 200); 
         }
 
-        // Escuchamos cuándo el usuario toca el mapa para rotar o mover
         window.map.on('rotatestart', activarModoMovimiento);
         window.map.on('dragstart', activarModoMovimiento);
         window.map.on('zoomstart', activarModoMovimiento);
 
-        // Escuchamos cuándo el usuario suelta la pantalla
         window.map.on('rotateend', desactivarModoMovimiento);
         window.map.on('dragend', desactivarModoMovimiento);
         window.map.on('zoomend', desactivarModoMovimiento);

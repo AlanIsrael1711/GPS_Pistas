@@ -6,7 +6,7 @@ const styleSeguridad = document.createElement('style');
 styleSeguridad.innerHTML = `
     #map.ocultar-etiquetas-edificios .tipo-edificio { display: none !important; opacity: 0 !important; visibility: hidden !important; }
     #map.ocultar-etiquetas-pistas .tipo-pista { display: none !important; opacity: 0 !important; visibility: hidden !important; }
-    /* Capa de seguridad para ocultar señalizaciones */
+    /* [NUEVO] Capa de seguridad para ocultar señalizaciones */
     #map.ocultar-senalizaciones .tipo-senalizacion { display: none !important; opacity: 0 !important; visibility: hidden !important; }
 `;
 document.head.appendChild(styleSeguridad);
@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
        ========================================================================== */
     const chkEtiquetasEdificios = document.getElementById('chkEtiquetasEdificios');
     const chkEtiquetasPistas = document.getElementById('chkEtiquetasPistas');
-    const chkSenalizaciones = document.getElementById('chkSenalizaciones');
+    const chkSenalizaciones = document.getElementById('chkSenalizaciones'); // [NUEVO]
 
     if (chkEtiquetasEdificios && mapContainer) {
         chkEtiquetasEdificios.addEventListener('change', function(e) {
@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // [NUEVO] Evento para el switch de Señalizaciones
     if (chkSenalizaciones && mapContainer) {
         chkSenalizaciones.addEventListener('change', function(e) {
             if (e.target.checked) mapContainer.classList.remove('ocultar-senalizaciones');
@@ -52,6 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnCerrarBuscador = document.getElementById('btnCerrarBuscador');
 
     if (inputBuscador && listaResultados) {
+        
         let isSearchOpen = false;
 
         function abrirBuscadorUI() {
@@ -130,9 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.map.flyTo([lugar.lat, lugar.lng], 18, { animate: true, duration: 1.5 });
             }
 
-            // [SOLUCIÓN HISTORIAL] Forza el permiso temporal para evitar rechazos
             window.zonaPermitidaTemporal = lugar.feature || true;
-            
             if (typeof window.irHacia === 'function') {
                 window.irHacia(lugar.lat, lugar.lng, lugar.nombre);
             }
