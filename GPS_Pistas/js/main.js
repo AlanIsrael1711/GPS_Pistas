@@ -141,16 +141,22 @@ window.irHacia = function(lat, lng, nombreLugar) {
 };
 
 function procesarSeleccionTemporal(lat, lng, nombre) {
-    if (window.geojsonDataPrincipalPermitida) {
-        const puntoClick = turf.point([lng, lat]);
-        const perimetro = window.geojsonDataPrincipalPermitida.features ? window.geojsonDataPrincipalPermitida.features[0] : window.geojsonDataPrincipalPermitida;
-        if (!turf.booleanPointInPolygon(puntoClick, perimetro)) {
-            alert("Destino fuera de límite."); return; 
+    // Si el punto viene de un lugar conocido (POI, edificio, terminal, historial o
+    // resultado del buscador), zonaPermitidaTemporal ya está fijado y saltamos
+    // AMBAS validaciones: perímetro exterior y zonas restringidas internas.
+    // Solo validamos cuando el usuario toca un punto libre en el mapa.
+    if (!window.zonaPermitidaTemporal) {
+        if (window.geojsonDataPrincipalPermitida) {
+            const puntoClick = turf.point([lng, lat]);
+            const perimetro = window.geojsonDataPrincipalPermitida.features ? window.geojsonDataPrincipalPermitida.features[0] : window.geojsonDataPrincipalPermitida;
+            if (!turf.booleanPointInPolygon(puntoClick, perimetro)) {
+                alert("Destino fuera de límite."); return;
+            }
         }
-    }
 
-    if (typeof window.esUbicacionValida === 'function' && !window.esUbicacionValida(lat, lng)) {
-        alert("Punto Inválido: Área restringida."); return;
+        if (typeof window.esUbicacionValida === 'function' && !window.esUbicacionValida(lat, lng)) {
+            alert("Punto Inválido: Área restringida."); return;
+        }
     }
 
     if (marcadorTemp) {

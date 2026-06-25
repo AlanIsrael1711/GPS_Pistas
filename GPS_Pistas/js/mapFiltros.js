@@ -1,12 +1,7 @@
-// =======================================================
-// mapFiltros.js - Control de Interfaz, Buscador y Filtros
-// =======================================================
-
 const styleSeguridad = document.createElement('style');
 styleSeguridad.innerHTML = `
     #map.ocultar-etiquetas-edificios .tipo-edificio { display: none !important; opacity: 0 !important; visibility: hidden !important; }
     #map.ocultar-etiquetas-pistas .tipo-pista { display: none !important; opacity: 0 !important; visibility: hidden !important; }
-    /* [NUEVO] Capa de seguridad para ocultar señalizaciones */
     #map.ocultar-senalizaciones .tipo-senalizacion { display: none !important; opacity: 0 !important; visibility: hidden !important; }
 `;
 document.head.appendChild(styleSeguridad);
@@ -14,12 +9,9 @@ document.head.appendChild(styleSeguridad);
 document.addEventListener('DOMContentLoaded', () => {
     const mapContainer = document.getElementById('map');
 
-    /* ==========================================================================
-       1. FILTROS DE VISIBILIDAD DE ETIQUETAS Y SEÑALES
-       ========================================================================== */
     const chkEtiquetasEdificios = document.getElementById('chkEtiquetasEdificios');
     const chkEtiquetasPistas = document.getElementById('chkEtiquetasPistas');
-    const chkSenalizaciones = document.getElementById('chkSenalizaciones'); // [NUEVO]
+    const chkSenalizaciones = document.getElementById('chkSenalizaciones');
 
     if (chkEtiquetasEdificios && mapContainer) {
         chkEtiquetasEdificios.addEventListener('change', function(e) {
@@ -35,7 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // [NUEVO] Evento para el switch de Señalizaciones
     if (chkSenalizaciones && mapContainer) {
         chkSenalizaciones.addEventListener('change', function(e) {
             if (e.target.checked) mapContainer.classList.remove('ocultar-senalizaciones');
@@ -43,9 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /* ==========================================================================
-       2. LÓGICA DEL BUSCADOR PREDICTIVO Y MÁQUINA DE ESTADO
-       ========================================================================== */
     const inputBuscador = document.getElementById('buscadorMapa');
     const listaResultados = document.getElementById('resultadosBusqueda');
     const btnLimpiar = document.getElementById('btnLimpiarBusqueda');
@@ -53,7 +41,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnCerrarBuscador = document.getElementById('btnCerrarBuscador');
 
     if (inputBuscador && listaResultados) {
-        
         let isSearchOpen = false;
 
         function abrirBuscadorUI() {
@@ -67,24 +54,19 @@ document.addEventListener('DOMContentLoaded', () => {
         function cerrarBuscadorUI(fromPopState = false) {
             if (!isSearchOpen) return;
             isSearchOpen = false;
-            
             searchBackdrop.classList.add('d-none');
             if (btnCerrarBuscador) btnCerrarBuscador.classList.add('d-none');
             listaResultados.classList.add('d-none');
-            
-            inputBuscador.blur(); 
-            
-            if (!fromPopState) {
-                history.back(); 
-            }
+            inputBuscador.blur();
+            if (!fromPopState) history.back();
         }
 
-        window.addEventListener('popstate', (e) => {
-            if (isSearchOpen) cerrarBuscadorUI(true); 
+        window.addEventListener('popstate', () => {
+            if (isSearchOpen) cerrarBuscadorUI(true);
         });
 
-        if (searchBackdrop) searchBackdrop.addEventListener('click', () => { cerrarBuscadorUI(); });
-        if (btnCerrarBuscador) btnCerrarBuscador.addEventListener('click', () => { cerrarBuscadorUI(); });
+        if (searchBackdrop) searchBackdrop.addEventListener('click', () => cerrarBuscadorUI());
+        if (btnCerrarBuscador) btnCerrarBuscador.addEventListener('click', () => cerrarBuscadorUI());
 
         function obtenerHistorial() {
             return JSON.parse(localStorage.getItem('historialGPS_Aeropuerto')) || [];
@@ -101,14 +83,11 @@ document.addEventListener('DOMContentLoaded', () => {
         function mostrarHistorial() {
             const historial = obtenerHistorial();
             listaResultados.innerHTML = '';
-            
             if (historial.length === 0) {
                 listaResultados.classList.add('d-none');
                 return;
             }
-
             listaResultados.innerHTML = '<li class="p-2 text-muted small fw-bold bg-light border-bottom">Búsquedas recientes</li>';
-            
             historial.forEach(item => {
                 const li = document.createElement('li');
                 li.className = 'list-group-item list-group-item-action resultado-item fw-bold text-dark d-flex align-items-center';
@@ -117,25 +96,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 li.addEventListener('click', () => seleccionarResultado(item));
                 listaResultados.appendChild(li);
             });
-            
             listaResultados.classList.remove('d-none');
         }
 
         function seleccionarResultado(lugar) {
-            cerrarBuscadorUI(); 
-            inputBuscador.value = lugar.nombre; 
+            cerrarBuscadorUI();
+            inputBuscador.value = lugar.nombre;
             if (btnLimpiar) btnLimpiar.classList.remove('d-none');
-
             agregarAlHistorial(lugar.nombre, lugar.lat, lugar.lng, lugar.feature);
 
-            if (window.map) {
-                window.map.flyTo([lugar.lat, lugar.lng], 18, { animate: true, duration: 1.5 });
-            }
+            if (window.map) window.map.flyTo([lugar.lat, lugar.lng], 18, { animate: true, duration: 1.5 });
 
+            // [CORRECCIÓN] Fijamos zonaPermitidaTemporal con el feature guardado (o true como
+            // bandera de emergencia). Esto le indica a procesarSeleccionTemporal que el punto
+            // proviene de un lugar conocido y válido, saltando AMBAS validaciones:
+            // la del perímetro exterior Y la de esUbicacionValida (zonas restringidas internas).
+            // Los lugares del historial ya fueron validados cuando el usuario los seleccionó
+            // por primera vez desde el mapa, así que es seguro omitir la revalidación.
             window.zonaPermitidaTemporal = lugar.feature || true;
-            if (typeof window.irHacia === 'function') {
-                window.irHacia(lugar.lat, lugar.lng, lugar.nombre);
-            }
+
+            if (typeof window.irHacia === 'function') window.irHacia(lugar.lat, lugar.lng, lugar.nombre);
         }
 
         inputBuscador.addEventListener('focus', () => {
@@ -146,7 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
         inputBuscador.addEventListener('input', function() {
             const texto = this.value.toLowerCase().trim();
             listaResultados.innerHTML = '';
-            
             if (texto.length > 0) {
                 if (btnLimpiar) btnLimpiar.classList.remove('d-none');
             } else {
@@ -154,38 +133,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 mostrarHistorial();
                 return;
             }
-
             if (texto.length < 2) {
                 listaResultados.classList.add('d-none');
                 return;
             }
-
             const directorio = window.directorioLugares || [];
-            
-            const coincidencias = directorio.filter(lugar => 
+            const coincidencias = directorio.filter(lugar =>
                 lugar && lugar.nombre && lugar.nombre.toLowerCase().includes(texto)
-            ).slice(0, 5); 
+            ).slice(0, 5);
 
             if (coincidencias.length > 0) {
                 listaResultados.innerHTML = '<li class="p-2 text-muted small fw-bold bg-light border-bottom">Resultados</li>';
                 listaResultados.classList.remove('d-none');
-                
                 coincidencias.forEach(lugar => {
                     const li = document.createElement('li');
                     li.className = 'list-group-item list-group-item-action resultado-item fw-bold text-dark d-flex align-items-center';
                     li.innerHTML = `<i class="bi bi-geo-alt-fill me-2 text-primary"></i> ${lugar.nombre}`;
                     li.style.cursor = 'pointer';
-                    
                     li.addEventListener('click', () => {
-                        const coordenadaLat = lugar.centro ? lugar.centro.lat : lugar.lat;
-                        const coordenadaLng = lugar.centro ? lugar.centro.lng : lugar.lng;
-
-                        seleccionarResultado({
-                            nombre: lugar.nombre,
-                            lat: coordenadaLat,
-                            lng: coordenadaLng,
-                            feature: lugar.feature || null
-                        });
+                        const cLat = lugar.centro ? lugar.centro.lat : lugar.lat;
+                        const cLng = lugar.centro ? lugar.centro.lng : lugar.lng;
+                        // [CORRECCIÓN] Lo mismo aplica para resultados del buscador en vivo:
+                        // el lugar viene del directorioLugares que se pobló desde los GeoJSONs
+                        // cargados, así que ya es un punto conocido y válido del mapa.
+                        window.zonaPermitidaTemporal = lugar.feature || true;
+                        seleccionarResultado({ nombre: lugar.nombre, lat: cLat, lng: cLng, feature: lugar.feature || null });
                     });
                     listaResultados.appendChild(li);
                 });
@@ -198,8 +170,8 @@ document.addEventListener('DOMContentLoaded', () => {
             btnLimpiar.addEventListener('click', () => {
                 inputBuscador.value = '';
                 btnLimpiar.classList.add('d-none');
-                mostrarHistorial(); 
-                inputBuscador.focus(); 
+                mostrarHistorial();
+                inputBuscador.focus();
             });
         }
     }
