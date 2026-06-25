@@ -94,8 +94,12 @@ socket.on('dibujar-ubicacion', (data) => {
             trazarRutaInteligente(miMarcadorLocal.getLatLng(), marcador.getLatLng());
         }
     } else {
-        const iconoPropio = (window.iconos && window.iconos.miUbicacion) ? window.iconos.miUbicacion : new L.Icon.Default();
-        miMarcadorLocal = L.marker([lat, lng], { icon: iconoPropio }).addTo(capaDestino);
+        // El ícono direccional está definido en mapIconos.js (window.iconos.miUbicacion).
+        // actualizarRotacionIcono() lo gira según el giroscopio para mostrar el frente real.
+        const iconoUsuario = (window.iconos && window.iconos.miUbicacion)
+            ? window.iconos.miUbicacion
+            : new L.Icon.Default();
+        miMarcadorLocal = L.marker([lat, lng], { icon: iconoUsuario }).addTo(capaDestino);
         if (marcador) window.enfocarUsuario();
     }
 
@@ -363,8 +367,13 @@ if (chkEvitarPistas) {
     });
 }
 
-let anguloActual = 0;
-// modoAutoRotacion eliminado: el mapa nunca rota automáticamente con el giroscopio.
+// =======================================================
+// GIROSCOPIO — Filtro de suavizado con zona muerta (anti-erratico)
+// =======================================================
+let usandoAbsoluto = false;
+let anguloCrudo = null;
+let anguloSuavizado = null;
+let ultimoAnguloRenderizado = -1;
 
 document.addEventListener('DOMContentLoaded', () => {
     const btnEnfoque = document.getElementById('btnEnfocarGps');
@@ -373,31 +382,32 @@ document.addEventListener('DOMContentLoaded', () => {
         btnEnfoque.addEventListener('click', () => { window.enfocarUsuario(); inicializarBrujula(); });
     }
 
-    // Brújula: al presionarla, hace el efecto visual de clic y luego
-    // regresa el mapa a la orientación norte original (bearing 0).
+    // Brújula: efecto visual de clic y regresa el mapa al norte (bearing 0).
     const btnBrujula = document.getElementById('btnBrujula');
     if (btnBrujula) {
         btnBrujula.addEventListener('click', () => {
-            // 1. Efecto visual: Se pone azul al instante de presionarlo
             btnBrujula.classList.remove('bg-white');
             btnBrujula.classList.add('bg-primary');
             btnBrujula.innerHTML = '<i class="bi bi-compass fs-4 text-white"></i>';
 
-            // 2. Regresa a blanco después de 200ms (dando la sensación de un clic físico)
             setTimeout(() => {
                 btnBrujula.classList.remove('bg-primary');
                 btnBrujula.classList.add('bg-white');
                 btnBrujula.innerHTML = '<i class="bi bi-compass fs-4 text-dark"></i>';
             }, 200);
 
-            // 3. Lógica interna: Regresar el mapa a la orientación norte (bearing 0)
             if (window.map && typeof window.map.setBearing === 'function') {
                 window.map.setBearing(0, { animate: true, duration: 0.5 });
             }
+            // Re-renderizamos el ícono con el nuevo bearing tras la animación
+            setTimeout(() => {
+                if (ultimoAnguloRenderizado !== -1) actualizarRotacionIcono(ultimoAnguloRenderizado);
+            }, 520);
         });
     }
 
     inicializarBrujula();
+    requestAnimationFrame(bucleIconoSuave);
 });
 
 function inicializarBrujula() {
@@ -407,26 +417,67 @@ function inicializarBrujula() {
 }
 
 function escucharOrientacion() {
-    window.addEventListener('deviceorientationabsolute', handlerOrientacion, true);
-    window.addEventListener('deviceorientation', handlerOrientacion, true);
+    // Preferimos deviceorientationabsolute (más preciso, ya referenciado al norte magnético)
+    window.addEventListener('deviceorientationabsolute', (e) => { usandoAbsoluto = true; handlerOrientacion(e); }, true);
+    window.addEventListener('deviceorientation', (e) => { if (!usandoAbsoluto) handlerOrientacion(e); }, true);
 }
 
 function handlerOrientacion(event) {
-    let heading = event.webkitCompassHeading ? event.webkitCompassHeading : (event.alpha !== null ? 360 - event.alpha : null);
-    if (heading !== null) {
-        anguloActual = heading;
-        actualizarRotacionIcono();
-        // El mapa ya no rota automáticamente con el giroscopio.
+    let heading;
+    if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
+        heading = event.webkitCompassHeading;
+    } else if (event.alpha !== null) {
+        heading = (360 - event.alpha) % 360;
+    }
+    if (heading !== undefined && heading !== null) {
+        anguloCrudo = heading;
+        // Inicializamos el suavizado en el primer dato recibido
+        if (anguloSuavizado === null) anguloSuavizado = heading;
     }
 }
 
-function actualizarRotacionIcono() {
+// Bucle RAF: suaviza el ángulo crudo y solo renderiza cuando el cambio es visible.
+// Alpha adaptativo: absorbe vibraciones pequeñas, responde rápido a giros grandes.
+// Zona muerta gráfica de 2°: evita micro-temblores constantes en el SVG.
+function bucleIconoSuave() {
+    if (anguloCrudo !== null && anguloSuavizado !== null) {
+
+        // Diferencia circular (evita saltos en el cruce 0°/360°)
+        let diferencia = anguloCrudo - anguloSuavizado;
+        while (diferencia >  180) diferencia -= 360;
+        while (diferencia < -180) diferencia += 360;
+
+        // Alpha adaptativo según la magnitud del giro
+        const abs = Math.abs(diferencia);
+        let alpha = 0.012;           // Reposo: absorción casi total de vibración
+        if      (abs > 20) alpha = 0.055;  // Giro rápido: respuesta ágil
+        else if (abs > 8)  alpha = 0.025;  // Giro medio: transición fluida
+
+        anguloSuavizado += diferencia * alpha;
+        if (anguloSuavizado <   0) anguloSuavizado += 360;
+        if (anguloSuavizado >= 360) anguloSuavizado -= 360;
+
+        // Zona muerta gráfica: solo renderizamos si el cambio es ≥ 2°
+        let difRender = anguloSuavizado - ultimoAnguloRenderizado;
+        while (difRender >  180) difRender -= 360;
+        while (difRender < -180) difRender += 360;
+
+        if (Math.abs(difRender) >= 2 || ultimoAnguloRenderizado === -1) {
+            ultimoAnguloRenderizado = Math.round(anguloSuavizado);
+            actualizarRotacionIcono(ultimoAnguloRenderizado);
+        }
+    }
+    requestAnimationFrame(bucleIconoSuave);
+}
+
+function actualizarRotacionIcono(angulo) {
     if (miMarcadorLocal && miMarcadorLocal._icon) {
-        const currentTransform = miMarcadorLocal._icon.style.transform;
-        if (!currentTransform) return;
-        const baseTransform = currentTransform.replace(/ rotateZ\([^)]+\)/g, '');
-        miMarcadorLocal._icon.style.transform = `${baseTransform} rotateZ(${anguloActual}deg)`;
-        miMarcadorLocal._icon.style.transition = 'transform 0.15s ease-out';
+        const svgEl = miMarcadorLocal._icon.querySelector('svg');
+        if (svgEl) {
+            const bearing = (window.map && typeof window.map.getBearing === 'function') ? window.map.getBearing() : 0;
+            const anguloCSS = ((angulo - bearing) % 360 + 360) % 360;
+            svgEl.style.transform = `rotateZ(${anguloCSS}deg)`;
+        }
     }
 }
 
@@ -458,7 +509,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.map.on('zoomend', desactivarModoMovimiento);
 
         window.map.on('rotate', () => {
-            actualizarRotacionIcono();
+            if (ultimoAnguloRenderizado !== -1) actualizarRotacionIcono(ultimoAnguloRenderizado);
         });
     }
 });
