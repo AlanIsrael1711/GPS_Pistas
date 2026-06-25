@@ -10,7 +10,7 @@ fetch('/resources/rodajes.geojson')
             // pointToLayer se usa para transformar Puntos GeoJSON en algo personalizado
             pointToLayer: function(feature, latlng) {
                 // Lee la propiedad 'nombre', 'name' o 'texto' de tu archivo
-                const textoEtiqueta = feature.properties.nombre || feature.properties.name || feature.properties.texto || '';
+                const textoEtiqueta = feature.properties.name || '';
 
                 if (!textoEtiqueta) return null; // Si el punto no tiene texto, lo ignoramos
 

@@ -44,4 +44,3 @@ window.iconos = {
         popupAnchor: [0, -36]
     })
 };
-

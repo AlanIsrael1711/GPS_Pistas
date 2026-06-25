@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.map.flyTo([lugar.lat, lugar.lng], 18, { animate: true, duration: 1.5 });
             }
 
-            window.zonaPermitidaTemporal = lugar.feature;
+            window.zonaPermitidaTemporal = lugar.feature || true;
             if (typeof window.irHacia === 'function') {
                 window.irHacia(lugar.lat, lugar.lng, lugar.nombre);
             }
