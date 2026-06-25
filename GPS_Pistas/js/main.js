@@ -3,7 +3,10 @@
 // =======================================================
 
 const socket = io();
-const marcadores = {};
+
+// Un único marcador local: solo tú existes en el mapa.
+// Se elimina el Map de marcadores múltiples y el sistema multijugador.
+let miMarcadorLocal = null;
 let primerAjuste = true;
 let trayectoria = null;
 let marcador = null; 
@@ -55,7 +58,7 @@ fetch('/resources/red_vascular_unida.geojson')
     .catch(err => console.error("Error cargando la red vascular:", err));
 
 // =======================================================
-// 3. GEOLOCALIZACIÓN Y SOCKETS
+// 3. GEOLOCALIZACIÓN Y SOCKETS (SOLO USUARIO ACTUAL)
 // =======================================================
 let ultimoEnvioGps = 0;
 const LIMITE_LATENCIA_MS = 2000; 
@@ -66,7 +69,8 @@ if (navigator.geolocation) {
             const ahora = Date.now();
             const { latitude, longitude } = pos.coords;
             
-            if (marcadores[socket.id]) marcadores[socket.id].setLatLng([latitude, longitude]);
+            // Actualización inmediata y fluida del marcador local sin esperar al servidor
+            if (miMarcadorLocal) miMarcadorLocal.setLatLng([latitude, longitude]);
 
             if (ahora - ultimoEnvioGps > LIMITE_LATENCIA_MS) {
                 if (typeof window.desbloquearZonaOrigen === 'function') window.desbloquearZonaOrigen(latitude, longitude);
@@ -79,38 +83,40 @@ if (navigator.geolocation) {
     );
 }
 
+// El servidor solo nos devuelve nuestra propia ubicación; no llega ningún otro usuario.
 socket.on('dibujar-ubicacion', (data) => {
-    const { id, lat, lng } = data;
+    const { lat, lng } = data;
     const capaDestino = (window.capas && window.capas.usuarios) ? window.capas.usuarios : window.map;
 
-    if (marcadores[id]) {
-        marcadores[id].setLatLng([lat, lng]);
-        if (id === socket.id && marcador && trayectoria) {
-            trazarRutaInteligente(marcadores[id].getLatLng(), marcador.getLatLng());
+    if (miMarcadorLocal) {
+        miMarcadorLocal.setLatLng([lat, lng]);
+        if (marcador && trayectoria) {
+            trazarRutaInteligente(miMarcadorLocal.getLatLng(), marcador.getLatLng());
         }
     } else {
         const iconoPropio = (window.iconos && window.iconos.miUbicacion) ? window.iconos.miUbicacion : new L.Icon.Default();
-        const iconoDestino = (window.iconos && window.iconos.destinoTemporal) ? window.iconos.destinoTemporal : new L.Icon.Default();
-        const iconoAsignar = (id === socket.id) ? iconoPropio : iconoDestino;
-        
-        marcadores[id] = L.marker([lat, lng], { icon: iconoAsignar }).addTo(capaDestino);
-        
-        if (id === socket.id && marcador) window.enfocarUsuario();
+        miMarcadorLocal = L.marker([lat, lng], { icon: iconoPropio }).addTo(capaDestino);
+        if (marcador) window.enfocarUsuario();
     }
 
-    if (id === socket.id && primerAjuste) {
+    if (primerAjuste) {
         window.map.flyTo([lat, lng], 16, { animate: true, duration: 2 });
         primerAjuste = false;
     }
 });
 
-socket.on('usuario-desconectado', (id) => {
-    if (marcadores[id]) {
+// Al reconectarse (ej. pantalla apagada), limpiamos el marcador anterior
+// para no duplicarlo con el nuevo socket.id que asigna el servidor.
+socket.on('connect', () => {
+    if (miMarcadorLocal) {
         const capaDestino = (window.capas && window.capas.usuarios) ? window.capas.usuarios : window.map;
-        capaDestino.removeLayer(marcadores[id]);
-        delete marcadores[id];
+        try { capaDestino.removeLayer(miMarcadorLocal); } catch (_) {}
+        miMarcadorLocal = null;
     }
+    primerAjuste = true;
 });
+
+// usuario-desconectado eliminado: no hay otros usuarios que gestionar.
 
 // =======================================================
 // 4. INTERACCIÓN Y SELECCIÓN DE DESTINOS
@@ -211,11 +217,10 @@ window.confirmarNuevoDestino = function() {
 };
 
 window.solicitarRuta = function() {
-    const miPosicion = marcadores[socket.id];
-    if (!miPosicion || !marcador) return;
+    if (!miMarcadorLocal || !marcador) return;
     trazandoRuta = true; 
     marcador.closePopup(); 
-    trazarRutaInteligente(miPosicion.getLatLng(), marcador.getLatLng());
+    trazarRutaInteligente(miMarcadorLocal.getLatLng(), marcador.getLatLng());
     window.enfocarUsuario();
 };
 
@@ -334,9 +339,8 @@ function dibujarLineaEnMapa(puntos) {
 }
 
 window.enfocarUsuario = function() {
-    const miPosicion = marcadores[socket.id];
-    if (miPosicion && window.map) {
-        window.map.flyTo(miPosicion.getLatLng(), 18, { animate: true, duration: 1.5 });
+    if (miMarcadorLocal && window.map) {
+        window.map.flyTo(miMarcadorLocal.getLatLng(), 18, { animate: true, duration: 1.5 });
         const btnEnfoque = document.getElementById('btnEnfocarGps');
         if (btnEnfoque) btnEnfoque.style.display = 'none';
     }
@@ -355,8 +359,7 @@ if (chkEvitarPistas) {
                 color: window.evitarPistasVuelo ? "#dc3545" : "#6c757d"
             });
         }
-        const miPosicion = marcadores[socket.id];
-        if (miPosicion && marcador) trazarRutaInteligente(miPosicion.getLatLng(), marcador.getLatLng());
+        if (miMarcadorLocal && marcador) trazarRutaInteligente(miMarcadorLocal.getLatLng(), marcador.getLatLng());
     });
 }
 
@@ -418,13 +421,12 @@ function handlerOrientacion(event) {
 }
 
 function actualizarRotacionIcono() {
-    const miMarcador = marcadores[socket.id];
-    if (miMarcador && miMarcador._icon) {
-        const currentTransform = miMarcador._icon.style.transform;
+    if (miMarcadorLocal && miMarcadorLocal._icon) {
+        const currentTransform = miMarcadorLocal._icon.style.transform;
         if (!currentTransform) return;
         const baseTransform = currentTransform.replace(/ rotateZ\([^)]+\)/g, '');
-        miMarcador._icon.style.transform = `${baseTransform} rotateZ(${anguloActual}deg)`;
-        miMarcador._icon.style.transition = 'transform 0.15s ease-out';
+        miMarcadorLocal._icon.style.transform = `${baseTransform} rotateZ(${anguloActual}deg)`;
+        miMarcadorLocal._icon.style.transition = 'transform 0.15s ease-out';
     }
 }
 
@@ -436,26 +438,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const mapaDOM = document.getElementById('map');
         let temporizadorMovimiento;
 
-        // Función que apaga los textos temporalmente
         function activarModoMovimiento() {
             mapaDOM.classList.add('mapa-en-movimiento');
             clearTimeout(temporizadorMovimiento);
         }
 
-        // Función que vuelve a encender los textos tras detenerse
         function desactivarModoMovimiento() {
-            // Le damos 200ms extra para asegurar que el giro físico ya terminó
             temporizadorMovimiento = setTimeout(() => {
                 mapaDOM.classList.remove('mapa-en-movimiento');
             }, 200); 
         }
 
-        // Escuchamos cuándo el usuario toca el mapa para rotar o mover
         window.map.on('rotatestart', activarModoMovimiento);
         window.map.on('dragstart', activarModoMovimiento);
         window.map.on('zoomstart', activarModoMovimiento);
 
-        // Escuchamos cuándo el usuario suelta la pantalla
         window.map.on('rotateend', desactivarModoMovimiento);
         window.map.on('dragend', desactivarModoMovimiento);
         window.map.on('zoomend', desactivarModoMovimiento);
