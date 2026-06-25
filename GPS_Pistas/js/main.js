@@ -94,12 +94,8 @@ socket.on('dibujar-ubicacion', (data) => {
             trazarRutaInteligente(miMarcadorLocal.getLatLng(), marcador.getLatLng());
         }
     } else {
-        // El ícono direccional está definido en mapIconos.js (window.iconos.miUbicacion).
-        // actualizarRotacionIcono() lo gira según el giroscopio para mostrar el frente real.
-        const iconoUsuario = (window.iconos && window.iconos.miUbicacion)
-            ? window.iconos.miUbicacion
-            : new L.Icon.Default();
-        miMarcadorLocal = L.marker([lat, lng], { icon: iconoUsuario }).addTo(capaDestino);
+        const iconoPropio = (window.iconos && window.iconos.miUbicacion) ? window.iconos.miUbicacion : new L.Icon.Default();
+        miMarcadorLocal = L.marker([lat, lng], { icon: iconoPropio }).addTo(capaDestino);
         if (marcador) window.enfocarUsuario();
     }
 
@@ -426,15 +422,11 @@ function handlerOrientacion(event) {
 
 function actualizarRotacionIcono() {
     if (miMarcadorLocal && miMarcadorLocal._icon) {
-        // Rotamos el SVG interno, no el div contenedor del marcador,
-        // para que el cono y la punta frontal giren correctamente.
-        const svgEl = miMarcadorLocal._icon.querySelector('svg');
-        if (svgEl) {
-            const bearing = (window.map && typeof window.map.getBearing === 'function') ? window.map.getBearing() : 0;
-            const anguloCSS = ((anguloActual - bearing) % 360 + 360) % 360;
-            svgEl.style.transform = `rotateZ(${anguloCSS}deg)`;
-            svgEl.style.transition = 'transform 0.15s ease-out';
-        }
+        const currentTransform = miMarcadorLocal._icon.style.transform;
+        if (!currentTransform) return;
+        const baseTransform = currentTransform.replace(/ rotateZ\([^)]+\)/g, '');
+        miMarcadorLocal._icon.style.transform = `${baseTransform} rotateZ(${anguloActual}deg)`;
+        miMarcadorLocal._icon.style.transition = 'transform 0.15s ease-out';
     }
 }
 
