@@ -1,0 +1,98 @@
+/* =======================================================
+   mapa-rendimiento.css — Renderizado fluido de polígonos
+   durante rotación, zoom y pan del mapa
+   ======================================================= */
+
+/*
+   1. GPU LAYER PARA EL CONTENEDOR SVG DE LEAFLET
+   Leaflet dibuja todos los polígonos dentro de un único
+   <svg class="leaflet-zoom-animated">. Promoverlo a su
+   propia capa GPU elimina el repaint en cada frame.
+*/
+.leaflet-overlay-pane svg,
+.leaflet-overlay-pane canvas {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+/*
+   2. SUAVIZADO DE TRANSICIÓN DURANTE ROTACIÓN Y ZOOM
+   Leaflet aplica transforms CSS al SVG para mover/escalar
+   el contenido sin redibujar. Esta transición hace que los
+   polígonos sigan la rotación de forma continua en lugar
+   de saltar frame a frame.
+*/
+.leaflet-zoom-animated {
+    transition: transform 0.08s linear;
+    will-change: transform;
+}
+
+/*
+   3. DESACTIVAR TRANSICIÓN DURANTE ARRASTRE (pan)
+   Durante el pan el mapa ya actualiza posición en cada
+   frame de forma nativa; añadir una transición CSS aquí
+   causa doble movimiento y se ve borroso.
+*/
+.leaflet-dragging .leaflet-zoom-animated {
+    transition: none;
+}
+
+/*
+   4. CAPAS DE TILES: TAMBIÉN GPU
+   Los tiles del mapa base comparten el presupuesto de
+   composición. Subirlos a GPU evita que compitan con
+   los polígonos en el mismo layer del navegador.
+*/
+.leaflet-tile-container {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+/*
+   5. MARCADORES: ROTACIÓN SIN LAYOUT THRASHING
+   Los marcadores divIcon (ícono de usuario, destinos) usan
+   transform para posicionarse. Indicar will-change evita
+   que el navegador los saque del flujo normal en cada frame.
+*/
+.leaflet-marker-pane,
+.leaflet-shadow-pane {
+    will-change: transform;
+}
+
+/*
+   6. ANTI-LAG DURANTE MOVIMIENTO ACTIVO
+   Mientras el mapa se mueve (clase añadida por el
+   optimizador de rendimiento en main.js), ocultamos
+   etiquetas de texto que no tienen GPU backing propio y
+   fuerzan repaint por ser elementos de texto SVG/div.
+   Esto previene el efecto de "titileo" de los nombres
+   de edificios y pistas durante la rotación.
+*/
+#map.mapa-en-movimiento .tipo-edificio,
+#map.mapa-en-movimiento .tipo-pista,
+#map.mapa-en-movimiento .tipo-senalizacion {
+    visibility: hidden;
+}
+
+/*
+   7. POLÍGONOS SVG: DESACTIVAR ANTIALIASING COSTOSO
+   shape-rendering: optimizeSpeed desactiva el antialiasing
+   sub-pixel durante movimiento, que es la operación más
+   cara por frame. El resultado es idéntico al ojo humano
+   durante la animación; al detenerse el navegador vuelve
+   a renderizar con calidad completa automáticamente.
+*/
+#map.mapa-en-movimiento .leaflet-overlay-pane path {
+    shape-rendering: optimizeSpeed;
+}
+
+/*
+   8. SUAVIZADO TÁCTIL (DISPOSITIVOS MÓVILES)
+   En iOS y Android Chrome, touch-action: none en el
+   contenedor del mapa puede causar jank al rotar con
+   dos dedos. Este override lo corrige.
+*/
+.leaflet-container {
+    touch-action: pan-x pan-y;
+    -webkit-overflow-scrolling: touch;
+}
