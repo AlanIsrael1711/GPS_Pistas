@@ -417,8 +417,6 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 if (ultimoAnguloRenderizado !== -1) actualizarRotacionIcono(ultimoAnguloRenderizado);
             }, 520);
-            // Reactivamos el seguimiento para que el mapa vuelva a centrar al usuario
-            window.enfocarUsuario();
         });
     }
 
