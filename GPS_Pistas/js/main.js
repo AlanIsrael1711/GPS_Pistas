@@ -9,7 +9,8 @@ const socket = io();
 let miMarcadorLocal = null;
 let primerAjuste = true;
 let trayectoria = null;
-let marcador = null; 
+let marcador = null;
+let siguiendoUsuario = false;
 
 // =======================================================
 // 1. ESTRUCTURA DE DATOS: MIN-HEAP
@@ -103,9 +104,20 @@ socket.on('dibujar-ubicacion', (data) => {
         if (marcador) window.enfocarUsuario();
     }
 
+    // Si el modo seguimiento está activo, re-centramos el mapa suavemente
+    // solo cuando el usuario se alejó lo suficiente del centro (>8m).
+    if (siguiendoUsuario && window.map) {
+        const centroActual = window.map.getCenter();
+        const distCentro = window.map.distance(centroActual, [lat, lng]);
+        if (distCentro > 8) {
+            window.map.panTo([lat, lng], { animate: true, duration: 1.5, easeLinearity: 0.25 });
+        }
+    }
+
     if (primerAjuste) {
         window.map.flyTo([lat, lng], 16, { animate: true, duration: 2 });
         primerAjuste = false;
+        siguiendoUsuario = true;
     }
 });
 
@@ -344,6 +356,7 @@ function dibujarLineaEnMapa(puntos) {
 
 window.enfocarUsuario = function() {
     if (miMarcadorLocal && window.map) {
+        siguiendoUsuario = true;
         window.map.flyTo(miMarcadorLocal.getLatLng(), 18, { animate: true, duration: 1.5 });
         const btnEnfoque = document.getElementById('btnEnfocarGps');
         if (btnEnfoque) btnEnfoque.style.display = 'none';
@@ -378,7 +391,8 @@ let ultimoAnguloRenderizado = -1;
 document.addEventListener('DOMContentLoaded', () => {
     const btnEnfoque = document.getElementById('btnEnfocarGps');
     if (btnEnfoque && window.map) {
-        window.map.on('dragstart', () => { btnEnfoque.style.display = 'block'; });
+        // El dragstart que cancela el seguimiento y muestra el botón
+        // está en la sección 8 junto al resto de eventos del mapa.
         btnEnfoque.addEventListener('click', () => { window.enfocarUsuario(); inicializarBrujula(); });
     }
 
@@ -403,6 +417,8 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 if (ultimoAnguloRenderizado !== -1) actualizarRotacionIcono(ultimoAnguloRenderizado);
             }, 520);
+            // Reactivamos el seguimiento para que el mapa vuelva a centrar al usuario
+            window.enfocarUsuario();
         });
     }
 
@@ -499,6 +515,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 mapaDOM.classList.remove('mapa-en-movimiento');
             }, 200); 
         }
+
+        // Cuando el usuario arrastra el mapa manualmente, cancelamos el seguimiento
+        // y mostramos el botón para volver a centrar.
+        window.map.on('dragstart', () => {
+            siguiendoUsuario = false;
+            const btnEnfoque = document.getElementById('btnEnfocarGps');
+            if (btnEnfoque) btnEnfoque.style.display = 'flex';
+        });
 
         window.map.on('rotatestart', activarModoMovimiento);
         window.map.on('dragstart', activarModoMovimiento);
