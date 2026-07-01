@@ -6,11 +6,50 @@ const socket = io();
 
 // Un único marcador local: solo tú existes en el mapa.
 // Se elimina el Map de marcadores múltiples y el sistema multijugador.
-let miMarcadorLocal = null;
+let miMarcadorLocal = null; 
 let primerAjuste = true;
 let trayectoria = null;
-let marcador = null;
+let marcador = null; 
 let siguiendoUsuario = false;
+
+// =======================================================
+// ICONOS VECTORIALES (Usuario y Destino)
+// =======================================================
+const iconoUsuarioConoSVG = `
+<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 20 20 L 5 0 A 20 20 0 0 1 35 0 Z" fill="rgba(37, 99, 235, 0.35)" />
+  <circle cx="20" cy="20" r="8" fill="white" />
+  <circle cx="20" cy="20" r="6" fill="#2563eb" />
+</svg>
+`;
+
+const iconoUsuarioGoogleMaps = L.divIcon({
+    className: 'marcador-usuario-direccion',
+    html: iconoUsuarioConoSVG,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20] 
+});
+
+const iconoDestinoTemporalSVG = `
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <path d="M16 0c-5.523 0-10 4.477-10 10 0 7.5 10 22 10 22s10-14.5 10-22c0-5.523-4.477-10-10-10z" fill="#ef4444"/>
+  <circle cx="16" cy="10" r="4" fill="white"/>
+</svg>
+`;
+
+const iconoDestinoTemporalPersonalizado = L.divIcon({
+    className: 'marcador-destino-temporal',
+    html: iconoDestinoTemporalSVG,
+    iconSize: [32, 32],
+    iconAnchor: [16, 32]
+});
+
+const styleIcono = document.createElement('style');
+styleIcono.innerHTML = `
+    .marcador-usuario-direccion svg { transition: none !important; will-change: transform; }
+    .marcador-destino-temporal svg { filter: drop-shadow(0px 4px 3px rgba(0,0,0,0.3)); }
+`;
+document.head.appendChild(styleIcono);
 
 // =======================================================
 // 1. ESTRUCTURA DE DATOS: MIN-HEAP
@@ -30,36 +69,43 @@ class MinHeap {
 let grafoRutas = new Map();
 let nodosCaminos = null; 
 
-fetch('/resources/red_vascular_unida.geojson')
+// [MODIFICADO] Apuntamos a tu nuevo archivo que contiene los pesos
+fetch('/resources/red_final_con_pesos.geojson')
     .then(r => r.json())
     .then(geojson => {
         let nodosTemp = [];
         turf.featureEach(geojson, function(feature) {
             if (feature.geometry.type === 'LineString') {
                 const coords = feature.geometry.coordinates;
+                
+                // [MODIFICACIÓN DE PESOS] Extraemos la propiedad 'peso'. Si no existe, vale 1.0 por defecto.
+                const pesoDeLaLinea = feature.properties.peso || 1.0;
+
                 for (let i = 0; i < coords.length - 1; i++) {
-                    const p1 = coords[i];
-                    const p2 = coords[i+1];
-                    const id1 = `${p1[0]},${p1[1]}`; 
-                    const id2 = `${p2[0]},${p2[1]}`;
+                    const p1 = coords[i]; const p2 = coords[i+1];
+                    const id1 = `${p1[0]},${p1[1]}`; const id2 = `${p2[0]},${p2[1]}`;
                     
-                    const dist = turf.distance(turf.point(p1), turf.point(p2));
+                    // Calculamos la distancia física real
+                    const distReal = turf.distance(turf.point(p1), turf.point(p2));
+                    
+                    // [MODIFICACIÓN DE PESOS] El costo final para el algoritmo es la distancia multiplicada por el peso
+                    const costoFinal = distReal * pesoDeLaLinea;
 
                     if (!grafoRutas.has(id1)) { grafoRutas.set(id1, []); nodosTemp.push(turf.point(p1, {id: id1})); }
                     if (!grafoRutas.has(id2)) { grafoRutas.set(id2, []); nodosTemp.push(turf.point(p2, {id: id2})); }
 
-                    grafoRutas.get(id1).push({ target: id2, cost: dist });
-                    grafoRutas.get(id2).push({ target: id1, cost: dist }); 
+                    // Guardamos la conexión usando el costoFinal, no solo la distancia
+                    grafoRutas.get(id1).push({ target: id2, cost: costoFinal });
+                    grafoRutas.get(id2).push({ target: id1, cost: costoFinal }); 
                 }
             }
         });
         nodosCaminos = turf.featureCollection(nodosTemp);
-        console.log(`Grafo vial cargado: ${grafoRutas.size} nodos listos.`);
-    })
-    .catch(err => console.error("Error cargando la red vascular:", err));
+        console.log(`Grafo vial cargado: ${grafoRutas.size} nodos listos con pesos integrados.`);
+    }).catch(err => console.error("Error cargando red vascular:", err));
 
 // =======================================================
-// 3. GEOLOCALIZACIÓN Y SOCKETS (SOLO USUARIO ACTUAL)
+// 3. GEOLOCALIZACIÓN Y SOCKETS (AISLADO PARA 1 USUARIO)
 // =======================================================
 let ultimoEnvioGps = 0;
 const LIMITE_LATENCIA_MS = 2000; 
@@ -70,7 +116,6 @@ if (navigator.geolocation) {
             const ahora = Date.now();
             const { latitude, longitude } = pos.coords;
             
-            // Actualización inmediata y fluida del marcador local sin esperar al servidor
             if (miMarcadorLocal) miMarcadorLocal.setLatLng([latitude, longitude]);
 
             if (ahora - ultimoEnvioGps > LIMITE_LATENCIA_MS) {
@@ -84,28 +129,21 @@ if (navigator.geolocation) {
     );
 }
 
-// El servidor solo nos devuelve nuestra propia ubicación; no llega ningún otro usuario.
 socket.on('dibujar-ubicacion', (data) => {
+    // Si el ID no es estrictamente el tuyo, lo ignora automáticamente.
+    if (data.id && data.id !== socket.id) return; 
+
     const { lat, lng } = data;
     const capaDestino = (window.capas && window.capas.usuarios) ? window.capas.usuarios : window.map;
 
     if (miMarcadorLocal) {
         miMarcadorLocal.setLatLng([lat, lng]);
-        if (marcador && trayectoria) {
-            trazarRutaInteligente(miMarcadorLocal.getLatLng(), marcador.getLatLng());
-        }
+        if (marcador && trayectoria) trazarRutaInteligente(miMarcadorLocal.getLatLng(), marcador.getLatLng());
     } else {
-        // El ícono direccional está definido en mapIconos.js (window.iconos.miUbicacion).
-        // actualizarRotacionIcono() lo gira según el giroscopio para mostrar el frente real.
-        const iconoUsuario = (window.iconos && window.iconos.miUbicacion)
-            ? window.iconos.miUbicacion
-            : new L.Icon.Default();
-        miMarcadorLocal = L.marker([lat, lng], { icon: iconoUsuario }).addTo(capaDestino);
+        miMarcadorLocal = L.marker([lat, lng], { icon: iconoUsuarioGoogleMaps }).addTo(capaDestino);
         if (marcador) window.enfocarUsuario();
     }
 
-    // Si el modo seguimiento está activo, re-centramos el mapa suavemente
-    // solo cuando el usuario se alejó lo suficiente del centro (>8m).
     if (siguiendoUsuario && window.map) {
         const centroActual = window.map.getCenter();
         const distCentro = window.map.distance(centroActual, [lat, lng]);
@@ -117,22 +155,20 @@ socket.on('dibujar-ubicacion', (data) => {
     if (primerAjuste) {
         window.map.flyTo([lat, lng], 16, { animate: true, duration: 2 });
         primerAjuste = false;
-        siguiendoUsuario = true;
+        siguiendoUsuario = true; 
     }
 });
 
-// Al reconectarse (ej. pantalla apagada), limpiamos el marcador anterior
-// para no duplicarlo con el nuevo socket.id que asigna el servidor.
+// Al reconectarse (ej. si apagas la pantalla), eliminamos tu marcador anterior para no duplicarlo
 socket.on('connect', () => {
-    if (miMarcadorLocal) {
+    if (miMarcadorLocal && window.map) {
         const capaDestino = (window.capas && window.capas.usuarios) ? window.capas.usuarios : window.map;
-        try { capaDestino.removeLayer(miMarcadorLocal); } catch (_) {}
+        try { capaDestino.removeLayer(miMarcadorLocal); } catch(_) {}
         miMarcadorLocal = null;
     }
     primerAjuste = true;
+    siguiendoUsuario = false;
 });
-
-// usuario-desconectado eliminado: no hay otros usuarios que gestionar.
 
 // =======================================================
 // 4. INTERACCIÓN Y SELECCIÓN DE DESTINOS
@@ -141,20 +177,19 @@ let marcadorTemp = null;
 let nombreLugarTemporal = ""; 
 let trazandoRuta = false; 
 
+let _ultimoDragEnd = 0;
+window.map.on('dragend', () => { _ultimoDragEnd = Date.now(); });
+
 window.map.on('click', function(e) {
+    if (Date.now() - _ultimoDragEnd < 300) return;
     const panel = document.getElementById('panelDestino');
     if (!panel.classList.contains('oculto')) {
         panel.classList.add('oculto');
-        if (marcadorTemp) {
-            window.map.removeLayer(marcadorTemp);
-            marcadorTemp = null;
-        }
+        if (marcadorTemp) { window.map.removeLayer(marcadorTemp); marcadorTemp = null; }
         return; 
     }
-
-    const { lat, lng } = e.latlng;
     nombreLugarTemporal = "Punto en el Mapa"; 
-    procesarSeleccionTemporal(lat, lng, nombreLugarTemporal);
+    procesarSeleccionTemporal(e.latlng.lat, e.latlng.lng, nombreLugarTemporal);
 });
 
 window.irHacia = function(lat, lng, nombreLugar) {
@@ -163,29 +198,26 @@ window.irHacia = function(lat, lng, nombreLugar) {
 };
 
 function procesarSeleccionTemporal(lat, lng, nombre) {
-    // Si el punto viene de un lugar conocido (POI, edificio, terminal, historial o
-    // resultado del buscador), zonaPermitidaTemporal ya está fijado y saltamos
-    // AMBAS validaciones: perímetro exterior y zonas restringidas internas.
-    // Solo validamos cuando el usuario toca un punto libre en el mapa.
-    if (!window.zonaPermitidaTemporal) {
-        if (window.geojsonDataPrincipalPermitida) {
-            const puntoClick = turf.point([lng, lat]);
-            const perimetro = window.geojsonDataPrincipalPermitida.features ? window.geojsonDataPrincipalPermitida.features[0] : window.geojsonDataPrincipalPermitida;
-            if (!turf.booleanPointInPolygon(puntoClick, perimetro)) {
-                return;
-            }
-        }
-
-        if (typeof window.esUbicacionValida === 'function' && !window.esUbicacionValida(lat, lng)) {
+    // Si la selección viene de un POI conocido (zona de interés, edificio, terminal),
+    // zonaPermitidaTemporal ya está fijado y no necesitamos validar contra el perímetro.
+    // Solo validamos perímetro cuando el usuario toca un punto libre en el mapa.
+    if (!window.zonaPermitidaTemporal && window.geojsonDataPrincipalPermitida) {
+        const puntoClick = turf.point([lng, lat]);
+        const perimetro = window.geojsonDataPrincipalPermitida.features
+            ? window.geojsonDataPrincipalPermitida.features[0]
+            : window.geojsonDataPrincipalPermitida;
+        if (!turf.booleanPointInPolygon(puntoClick, perimetro)) {
+            alert("Destino fuera de límite.");
             return;
         }
     }
 
-    if (marcadorTemp) {
-        marcadorTemp.setLatLng([lat, lng]);
-    } else {
-        marcadorTemp = L.marker([lat, lng], { icon: window.iconos.destinoTemporal }).addTo(window.map);
+    if (typeof window.esUbicacionValida === 'function' && !window.esUbicacionValida(lat, lng)) {
+        alert("Punto Inválido: Área restringida."); return;
     }
+
+    if (marcadorTemp) marcadorTemp.setLatLng([lat, lng]);
+    else marcadorTemp = L.marker([lat, lng], { icon: iconoDestinoTemporalPersonalizado }).addTo(window.map);
 
     document.getElementById('bs-titulo').innerText = nombre;
     document.getElementById('panelDestino').classList.remove('oculto');
@@ -193,20 +225,15 @@ function procesarSeleccionTemporal(lat, lng, nombre) {
 
 window.cerrarPanelDestino = function() {
     document.getElementById('panelDestino').classList.add('oculto');
-    if (marcadorTemp) {
-        window.map.removeLayer(marcadorTemp);
-        marcadorTemp = null;
-    }
+    if (marcadorTemp) { window.map.removeLayer(marcadorTemp); marcadorTemp = null; }
 };
 
 window.confirmarNuevoDestino = function() {
     if (!marcadorTemp) return;
-    
     document.getElementById('panelDestino').classList.add('oculto');
 
     const nuevaCoordenada = marcadorTemp.getLatLng();
     const nombreFinal = nombreLugarTemporal; 
-
     const tempRef = marcadorTemp;
     marcadorTemp = null; 
     window.map.removeLayer(tempRef);
@@ -218,7 +245,6 @@ window.confirmarNuevoDestino = function() {
         const capaParaDestino = (window.capas && window.capas.destinos) ? window.capas.destinos : window.map;
         marcador = L.marker(nuevaCoordenada, { icon: window.iconos.destino }).addTo(capaParaDestino);
         marcador.bindPopup(`<strong class="text-success">${nombreFinal}</strong>`).openPopup();
-        
         marcador.on('popupclose', function() {
             if (!trazandoRuta && marcador) {
                 window.capas.destinos.removeLayer(marcador);
@@ -228,7 +254,6 @@ window.confirmarNuevoDestino = function() {
             trazandoRuta = false; 
         });
     }
-
     window.solicitarRuta();
 };
 
@@ -245,18 +270,11 @@ window.solicitarRuta = function() {
 // =======================================================
 function trazarRutaInteligente(inicioGPS, finGPS) {
     if (!grafoRutas.size || !nodosCaminos) {
-        dibujarLineaEnMapa([[inicioGPS.lat, inicioGPS.lng], [finGPS.lat, finGPS.lng]]);
-        return;
+        dibujarLineaEnMapa([[inicioGPS.lat, inicioGPS.lng], [finGPS.lat, finGPS.lng]]); return;
     }
 
-    const ptInicio = turf.point([inicioGPS.lng, inicioGPS.lat]);
-    const ptFin = turf.point([finGPS.lng, finGPS.lat]);
-
-    const nodoInicio = turf.nearestPoint(ptInicio, nodosCaminos);
-    const nodoFin = turf.nearestPoint(ptFin, nodosCaminos);
-
-    const startId = nodoInicio.properties.id;
-    const endId = nodoFin.properties.id;
+    const startId = turf.nearestPoint(turf.point([inicioGPS.lng, inicioGPS.lat]), nodosCaminos).properties.id;
+    const endId = turf.nearestPoint(turf.point([finGPS.lng, finGPS.lat]), nodosCaminos).properties.id;
 
     const openHeap = new MinHeap();
     const gScores = new Map();
@@ -286,77 +304,60 @@ function trazarRutaInteligente(inicioGPS, finGPS) {
         const vecinos = grafoRutas.get(currId) || [];
 
         for (let v of vecinos) {
-            let penalizacion = 1.0;
+            let penalizacionAdicional = 1.0;
             if (window.evitarPistasVuelo && typeof window.esZonaPuente === 'function') {
                 const [lng, lat] = v.target.split(',').map(Number);
                 if (!window.esZonaPuente(lat, lng) && typeof window.esUbicacionValida === 'function' && !window.esUbicacionValida(lat, lng)) {
-                    penalizacion = 9999; 
+                    penalizacionAdicional = 9999; 
                 }
             }
 
-            const tentativeG = currG + (v.cost * penalizacion);
+            // [MODIFICACIÓN DE PESOS] El v.cost que viene del grafo ya incluye el peso del GeoJSON
+            // Aquí solo se multiplica por posibles filtros visuales (evitar pistas) adicionales.
+            const tentativeG = currG + (v.cost * penalizacionAdicional);
             const neighborG = gScores.has(v.target) ? gScores.get(v.target) : Infinity;
 
             if (tentativeG < neighborG) {
                 parents.set(v.target, currId);
                 gScores.set(v.target, tentativeG);
-                
                 const pC = v.target.split(',').map(Number);
                 const pF = endId.split(',').map(Number);
-                const h = turf.distance(turf.point(pC), turf.point(pF));
-
-                openHeap.push(v.target, tentativeG + h);
+                openHeap.push(v.target, tentativeG + turf.distance(turf.point(pC), turf.point(pF)));
             }
         }
     }
 
     const pathCoords = [];
     let curr = caminoEncontrado ? endId : mejorNodoAlcanzado;
-    
     while (curr) {
         const [lng, lat] = curr.split(',').map(Number);
         pathCoords.push({lat, lng});
         curr = parents.get(curr);
     }
     pathCoords.reverse();
-    
     pathCoords.unshift(inicioGPS);
-    
     if (!caminoEncontrado) {
         const [endLng, endLat] = endId.split(',').map(Number);
         pathCoords.push({lat: endLat, lng: endLng});
-        console.warn("Se utilizó un puente de aproximación inteligente para sortear una zona desconectada.");
     }
-    
     pathCoords.push(finGPS);
-
     dibujarLineaEnMapa(pathCoords.map(pt => [pt.lat, pt.lng]));
 }
 
-
-// =======================================================
-// 6. FUNCIONES AUXILIARES Y DIBUJO
-// =======================================================
 function dibujarLineaEnMapa(puntos) {
     const capaParaTrayectoria = (window.capas && window.capas.trayectorias) ? window.capas.trayectorias : window.map;
-    
     if (trayectoria) {
         trayectoria.setLatLngs(puntos);
     } else {
         trayectoria = L.polyline(puntos, {
-            color: '#2563eb',
-            weight: 5,
-            opacity: 0.8,
-            dashArray: '10, 15',
-            lineCap: 'round',
-            smoothFactor: 0 
+            color: '#2563eb', weight: 5, opacity: 0.8, dashArray: '10, 15', lineCap: 'round', smoothFactor: 0 
         }).addTo(capaParaTrayectoria); 
     }
 }
 
 window.enfocarUsuario = function() {
     if (miMarcadorLocal && window.map) {
-        siguiendoUsuario = true;
+        siguiendoUsuario = true; 
         window.map.flyTo(miMarcadorLocal.getLatLng(), 18, { animate: true, duration: 1.5 });
         const btnEnfoque = document.getElementById('btnEnfocarGps');
         if (btnEnfoque) btnEnfoque.style.display = 'none';
@@ -364,74 +365,73 @@ window.enfocarUsuario = function() {
 };
 
 // =======================================================
-// 7. FILTROS, BRÚJULA Y ORIENTACIÓN AL NORTE
+// 7. GIROSCOPIO (SÓLO PARA ICONO)
 // =======================================================
-const chkEvitarPistas = document.getElementById('chkEvitarPistas');
-if (chkEvitarPistas) {
-    chkEvitarPistas.addEventListener('change', function(e) {
-        window.evitarPistasVuelo = e.target.checked;
-        if (window.capaPistasVuelo) {
-            window.capaPistasVuelo.setStyle({
-                fillOpacity: window.evitarPistasVuelo ? 0.2 : 0.05,
-                color: window.evitarPistasVuelo ? "#dc3545" : "#6c757d"
-            });
-        }
-        if (miMarcadorLocal && marcador) trazarRutaInteligente(miMarcadorLocal.getLatLng(), marcador.getLatLng());
-    });
-}
-
-// =======================================================
-// GIROSCOPIO — Filtro de suavizado con zona muerta (anti-erratico)
-// =======================================================
+const CALIBRACION_FRENTE = 0;
 let usandoAbsoluto = false;
 let anguloCrudo = null;
 let anguloSuavizado = null;
 let ultimoAnguloRenderizado = -1;
 
+function mostrarNotificacion(mensaje) {
+    let toast = document.getElementById('toast-giroscopio');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast-giroscopio';
+        toast.className = 'shadow-lg';
+        toast.style.cssText = 'position: fixed; top: 100px; left: 50%; transform: translateX(-50%) scale(0.95); background-color: #0d6efd; color: white; padding: 10px 20px; border-radius: 30px; font-weight: 600; font-size: 14px; z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.4s ease, transform 0.4s ease; display: flex; align-items: center; gap: 8px;';
+        document.body.appendChild(toast);
+    }
+    toast.innerHTML = `<i class="bi bi-compass-fill"></i> ${mensaje}`;
+    toast.style.opacity = '1'; toast.style.transform = 'translateX(-50%) scale(1)';
+    clearTimeout(window.toastTimer);
+    window.toastTimer = setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) scale(0.95)'; }, 1500); 
+}
+
+const chkEvitarPistas = document.getElementById('chkEvitarPistas');
+if (chkEvitarPistas) {
+    chkEvitarPistas.addEventListener('change', function(e) {
+        window.evitarPistasVuelo = e.target.checked;
+        if (window.capaPistasVuelo) {
+            window.capaPistasVuelo.setStyle({ fillOpacity: window.evitarPistasVuelo ? 0.2 : 0.05, color: window.evitarPistasVuelo ? "#dc3545" : "#6c757d" });
+        }
+        if (miMarcadorLocal && marcador) trazarRutaInteligente(miMarcadorLocal.getLatLng(), marcador.getLatLng());
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const btnEnfoque = document.getElementById('btnEnfocarGps');
     if (btnEnfoque && window.map) {
-        // El dragstart que cancela el seguimiento y muestra el botón
-        // está en la sección 8 junto al resto de eventos del mapa.
-        btnEnfoque.addEventListener('click', () => { window.enfocarUsuario(); inicializarBrujula(); });
+        window.map.on('dragstart', () => { siguiendoUsuario = false; btnEnfoque.style.display = 'flex'; });
+        btnEnfoque.addEventListener('click', () => { window.enfocarUsuario(); });
     }
 
-    // Brújula: efecto visual de clic y regresa el mapa al norte (bearing 0).
     const btnBrujula = document.getElementById('btnBrujula');
     if (btnBrujula) {
         btnBrujula.addEventListener('click', () => {
-            btnBrujula.classList.remove('bg-white');
+            // Efecto visual
             btnBrujula.classList.add('bg-primary');
-            btnBrujula.innerHTML = '<i class="bi bi-compass fs-4 text-white"></i>';
+            setTimeout(() => { btnBrujula.classList.remove('bg-primary'); }, 200);
 
-            setTimeout(() => {
-                btnBrujula.classList.remove('bg-primary');
-                btnBrujula.classList.add('bg-white');
-                btnBrujula.innerHTML = '<i class="bi bi-compass fs-4 text-dark"></i>';
-            }, 200);
-
+            // Reorientación simple
             if (window.map && typeof window.map.setBearing === 'function') {
                 window.map.setBearing(0, { animate: true, duration: 0.5 });
+                mostrarNotificacion("Mapa orientado al Norte");
             }
-            // Re-renderizamos el ícono con el nuevo bearing tras la animación
-            setTimeout(() => {
-                if (ultimoAnguloRenderizado !== -1) actualizarRotacionIcono(ultimoAnguloRenderizado);
-            }, 520);
         });
     }
 
-    inicializarBrujula();
+    iniciarGiroscopio();
     requestAnimationFrame(bucleIconoSuave);
 });
 
-function inicializarBrujula() {
+function iniciarGiroscopio() {
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission().then(p => { if (p === 'granted') escucharOrientacion(); }).catch(console.error);
     } else escucharOrientacion();
 }
 
 function escucharOrientacion() {
-    // Preferimos deviceorientationabsolute (más preciso, ya referenciado al norte magnético)
     window.addEventListener('deviceorientationabsolute', (e) => { usandoAbsoluto = true; handlerOrientacion(e); }, true);
     window.addEventListener('deviceorientation', (e) => { if (!usandoAbsoluto) handlerOrientacion(e); }, true);
 }
@@ -444,38 +444,26 @@ function handlerOrientacion(event) {
         heading = (360 - event.alpha) % 360;
     }
     if (heading !== undefined && heading !== null) {
+        heading = ((heading + CALIBRACION_FRENTE) % 360 + 360) % 360;
         anguloCrudo = heading;
-        // Inicializamos el suavizado en el primer dato recibido
         if (anguloSuavizado === null) anguloSuavizado = heading;
     }
 }
 
-// Bucle RAF: suaviza el ángulo crudo y solo renderiza cuando el cambio es visible.
-// Alpha adaptativo: absorbe vibraciones pequeñas, responde rápido a giros grandes.
-// Zona muerta gráfica de 2°: evita micro-temblores constantes en el SVG.
 function bucleIconoSuave() {
     if (anguloCrudo !== null && anguloSuavizado !== null) {
-
-        // Diferencia circular (evita saltos en el cruce 0°/360°)
         let diferencia = anguloCrudo - anguloSuavizado;
         while (diferencia >  180) diferencia -= 360;
         while (diferencia < -180) diferencia += 360;
-
-        // Alpha adaptativo según la magnitud del giro
+        let alpha = 0.012; 
         const abs = Math.abs(diferencia);
-        let alpha = 0.012;           // Reposo: absorción casi total de vibración
-        if      (abs > 20) alpha = 0.055;  // Giro rápido: respuesta ágil
-        else if (abs > 8)  alpha = 0.025;  // Giro medio: transición fluida
-
+        if (abs > 20) alpha = 0.055; else if (abs > 8) alpha = 0.025;
         anguloSuavizado += diferencia * alpha;
-        if (anguloSuavizado <   0) anguloSuavizado += 360;
+        if (anguloSuavizado < 0) anguloSuavizado += 360;
         if (anguloSuavizado >= 360) anguloSuavizado -= 360;
-
-        // Zona muerta gráfica: solo renderizamos si el cambio es ≥ 2°
         let difRender = anguloSuavizado - ultimoAnguloRenderizado;
-        while (difRender >  180) difRender -= 360;
+        while (difRender > 180) difRender -= 360;
         while (difRender < -180) difRender += 360;
-
         if (Math.abs(difRender) >= 2 || ultimoAnguloRenderizado === -1) {
             ultimoAnguloRenderizado = Math.round(anguloSuavizado);
             actualizarRotacionIcono(ultimoAnguloRenderizado);
@@ -486,11 +474,11 @@ function bucleIconoSuave() {
 
 function actualizarRotacionIcono(angulo) {
     if (miMarcadorLocal && miMarcadorLocal._icon) {
-        const svgEl = miMarcadorLocal._icon.querySelector('svg');
-        if (svgEl) {
+        const svgElement = miMarcadorLocal._icon.querySelector('svg');
+        if (svgElement) {
             const bearing = (window.map && typeof window.map.getBearing === 'function') ? window.map.getBearing() : 0;
             const anguloCSS = ((angulo - bearing) % 360 + 360) % 360;
-            svgEl.style.transform = `rotateZ(${anguloCSS}deg)`;
+            svgElement.style.transform = `rotateZ(${anguloCSS}deg)`;
         }
     }
 }
@@ -503,16 +491,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const mapaDOM = document.getElementById('map');
         let temporizadorMovimiento;
 
-        function activarModoMovimiento() {
-            mapaDOM.classList.add('mapa-en-movimiento');
-            clearTimeout(temporizadorMovimiento);
-        }
-
-        function desactivarModoMovimiento() {
-            temporizadorMovimiento = setTimeout(() => {
-                mapaDOM.classList.remove('mapa-en-movimiento');
-            }, 200); 
-        }
+        function activarModoMovimiento() { mapaDOM.classList.add('mapa-en-movimiento'); clearTimeout(temporizadorMovimiento); }
+        function desactivarModoMovimiento() { temporizadorMovimiento = setTimeout(() => { mapaDOM.classList.remove('mapa-en-movimiento'); }, 200); }
 
         // Cuando el usuario arrastra el mapa manualmente, cancelamos el seguimiento
         // y mostramos el botón para volver a centrar.
@@ -525,7 +505,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.map.on('rotatestart', activarModoMovimiento);
         window.map.on('dragstart', activarModoMovimiento);
         window.map.on('zoomstart', activarModoMovimiento);
-
         window.map.on('rotateend', desactivarModoMovimiento);
         window.map.on('dragend', desactivarModoMovimiento);
         window.map.on('zoomend', desactivarModoMovimiento);
