@@ -30,26 +30,50 @@ class MinHeap {
 let grafoRutas = new Map();
 let nodosCaminos = null; 
 
-fetch('/resources/red_vascular_unida.geojson')
+// -------------------------------------------------------
+// Ponderación por afluencia (propiedad "peso" del geojson)
+// -------------------------------------------------------
+// peso = 1 -> tramo "principal" (presente tanto en red_sin_pista_lateral
+//             como en red_vascular_unida): costo normal.
+// peso = 2 -> tramo exclusivo de red_vascular_unida (zona de mayor
+//             afluencia / vía lateral): el A* la evita de forma fuerte
+//             AUNQUE la ruta alterna sea más larga en el mapa, salvo
+//             que el usuario ya se encuentre muy cerca de esa zona
+//             (ver UMBRAL_CERCANIA_ZONA_PESO_M en la sección 5), caso en
+//             el que sí se permite cruzarla sin penalización extra.
+// El costo real (distReal) y el peso se guardan en cada arista; la
+// penalización se calcula en tiempo real dentro del A* (sección 5),
+// porque depende de dónde está parado el usuario en cada trazado.
+
+fetch('/resources/red_vascular_unida_con_peso.geojson')
     .then(r => r.json())
     .then(geojson => {
         let nodosTemp = [];
         turf.featureEach(geojson, function(feature) {
             if (feature.geometry.type === 'LineString') {
                 const coords = feature.geometry.coordinates;
+
+                // Peso de la vía completa (viene del geojson, default 1 si no existe)
+                const peso = (feature.properties && typeof feature.properties.peso === 'number')
+                    ? feature.properties.peso
+                    : 1;
+
                 for (let i = 0; i < coords.length - 1; i++) {
                     const p1 = coords[i];
                     const p2 = coords[i+1];
                     const id1 = `${p1[0]},${p1[1]}`; 
                     const id2 = `${p2[0]},${p2[1]}`;
                     
-                    const dist = turf.distance(turf.point(p1), turf.point(p2));
+                    const distReal = turf.distance(turf.point(p1), turf.point(p2));
 
                     if (!grafoRutas.has(id1)) { grafoRutas.set(id1, []); nodosTemp.push(turf.point(p1, {id: id1})); }
                     if (!grafoRutas.has(id2)) { grafoRutas.set(id2, []); nodosTemp.push(turf.point(p2, {id: id2})); }
 
-                    grafoRutas.get(id1).push({ target: id2, cost: dist });
-                    grafoRutas.get(id2).push({ target: id1, cost: dist }); 
+                    // cost = distancia real "pelona". El peso NO se aplica aquí porque
+                    // su penalización depende de la posición del usuario en cada
+                    // trazado (ver trazarRutaInteligente, sección 5).
+                    grafoRutas.get(id1).push({ target: id2, cost: distReal, peso });
+                    grafoRutas.get(id2).push({ target: id1, cost: distReal, peso }); 
                 }
             }
         });
@@ -243,6 +267,25 @@ window.solicitarRuta = function() {
 // =======================================================
 // 5. MOTOR VECTORIAL A* CON PUENTES INTELIGENTES
 // =======================================================
+
+// -------------------------------------------------------
+// Evasión dinámica de zonas de mayor afluencia (peso = 2)
+// -------------------------------------------------------
+// UMBRAL_CERCANIA_ZONA_PESO_M: si el punto de partida del usuario está a
+// menos de esta distancia (en metros) de un tramo de peso alto, se asume
+// que el usuario YA está prácticamente sobre/dentro de esa zona y por lo
+// tanto sí se le permite cruzarla sin penalización (sería absurdo
+// mandarlo a dar la vuelta si ya está ahí).
+//
+// FACTOR_EVASION_FUERTE: multiplicador aplicado al costo de un tramo de
+// peso alto cuando el usuario NO está cerca (según el umbral de arriba).
+// Es intencionalmente grande para que el A* prefiera una ruta bastante
+// más larga con tal de no cruzar esa zona, pero sigue siendo un número
+// finito (a diferencia del bloqueo de pistas de vuelo, que es 9999) para
+// que, si esa fuera la única forma de llegar, la ruta igual se calcule.
+const UMBRAL_CERCANIA_ZONA_PESO_M = 600;
+const FACTOR_EVASION_FUERTE = 20;
+
 function trazarRutaInteligente(inicioGPS, finGPS) {
     if (!grafoRutas.size || !nodosCaminos) {
         dibujarLineaEnMapa([[inicioGPS.lat, inicioGPS.lng], [finGPS.lat, finGPS.lng]]);
@@ -294,7 +337,21 @@ function trazarRutaInteligente(inicioGPS, finGPS) {
                 }
             }
 
-            const tentativeG = currG + (v.cost * penalizacion);
+            // --- Evasión por peso (zonas de mayor afluencia) ---
+            // Si el tramo tiene peso > 1, se penaliza fuerte para que el A*
+            // prefiera un camino más largo, EXCEPTO si el usuario ya arrancó
+            // muy cerca de ese tramo (UMBRAL_CERCANIA_ZONA_PESO_M), en cuyo
+            // caso se le permite pasar sin castigo extra.
+            let factorPeso = 1.0;
+            if (v.peso && v.peso > 1) {
+                const [lngV, latV] = v.target.split(',').map(Number);
+                const distUsuarioM = turf.distance(ptInicio, turf.point([lngV, latV]), { units: 'meters' });
+                factorPeso = (distUsuarioM > UMBRAL_CERCANIA_ZONA_PESO_M)
+                    ? v.peso * FACTOR_EVASION_FUERTE
+                    : 1.0;
+            }
+
+            const tentativeG = currG + (v.cost * factorPeso * penalizacion);
             const neighborG = gScores.has(v.target) ? gScores.get(v.target) : Infinity;
 
             if (tentativeG < neighborG) {
