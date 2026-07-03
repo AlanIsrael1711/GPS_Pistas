@@ -45,7 +45,7 @@ let nodosCaminos = null;
 // penalización se calcula en tiempo real dentro del A* (sección 5),
 // porque depende de dónde está parado el usuario en cada trazado.
 
-fetch('/resources/red_vascular_unida_con_peso.geojson')
+fetch('/resources/mapa_conectado.geojson')
     .then(r => r.json())
     .then(geojson => {
         let nodosTemp = [];
