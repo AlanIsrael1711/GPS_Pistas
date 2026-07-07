@@ -333,7 +333,7 @@ function trazarRutaInteligente(inicioGPS, finGPS) {
             if (window.evitarPistasVuelo && typeof window.esZonaPuente === 'function') {
                 const [lng, lat] = v.target.split(',').map(Number);
                 if (!window.esZonaPuente(lat, lng) && typeof window.esUbicacionValida === 'function' && !window.esUbicacionValida(lat, lng)) {
-                    penalizacion = 9999; 
+                    continue; // Se ignora esta arista, no se relaja ni se agrega al heap
                 }
             }
 
@@ -351,17 +351,17 @@ function trazarRutaInteligente(inicioGPS, finGPS) {
                     : 1.0;
             }
 
-            const tentativeG = currG + (v.cost * factorPeso * penalizacion);
+            const tentativeG = currG + (v.cost * factorPeso);
             const neighborG = gScores.has(v.target) ? gScores.get(v.target) : Infinity;
-
+        
             if (tentativeG < neighborG) {
                 parents.set(v.target, currId);
                 gScores.set(v.target, tentativeG);
-                
+        
                 const pC = v.target.split(',').map(Number);
                 const pF = endId.split(',').map(Number);
                 const h = turf.distance(turf.point(pC), turf.point(pF));
-
+        
                 openHeap.push(v.target, tentativeG + h);
             }
         }
