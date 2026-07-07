@@ -592,3 +592,167 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// =======================================================
+// 9. INSTRUCCIONES DE NAVEGACIÓN (Turn-by-turn) Y FLECHAS DE DIRECCIÓN
+// =======================================================
+
+let pasosRuta = [];      // [{coordInicio, coordFin, distancia, bearingSalida, giro, texto, icono}]
+let capaFlechas = null;  // Capa con las flechas sobre la trayectoria
+let pasoActualIndex = 0;
+
+const UMBRAL_GIRO_LEVE = 20;    // grados: a partir de aquí ya es "gira a la..."
+const UMBRAL_GIRO_FUERTE = 45;  // grados: giro cerrado
+const DIST_MIN_SEGMENTO_M = 15; // ignora micro-tramos para no generar giros falsos
+const SEPARACION_FLECHAS_M = 40;
+
+// -------------------------------------------------------
+// 9.1 Genera instrucciones a partir del camino ya calculado por A*
+// -------------------------------------------------------
+function generarInstrucciones(pathCoords) {
+    if (!pathCoords || pathCoords.length < 2) return [];
+
+    const puntos = pathCoords.map(p => turf.point([p.lng, p.lat]));
+    const bearings = [];
+    for (let i = 0; i < puntos.length - 1; i++) {
+        bearings.push(turf.bearing(puntos[i], puntos[i + 1]));
+    }
+
+    const pasos = [];
+    let inicioSegmento = 0;
+    let distanciaAcumulada = 0;
+
+    for (let i = 0; i < bearings.length; i++) {
+        distanciaAcumulada += turf.distance(puntos[i], puntos[i + 1], { units: 'meters' });
+        const esUltimo = i === bearings.length - 1;
+
+        let diffBearing = 0;
+        if (!esUltimo) {
+            diffBearing = bearings[i + 1] - bearings[i];
+            while (diffBearing > 180) diffBearing -= 360;
+            while (diffBearing < -180) diffBearing += 360;
+        }
+
+        if (esUltimo || Math.abs(diffBearing) >= UMBRAL_GIRO_LEVE) {
+            if (distanciaAcumulada >= DIST_MIN_SEGMENTO_M || pasos.length === 0 || esUltimo) {
+                pasos.push({
+                    coordInicio: pathCoords[inicioSegmento],
+                    coordFin: pathCoords[i + 1],
+                    distancia: distanciaAcumulada,
+                    giro: esUltimo ? null : diffBearing
+                });
+                inicioSegmento = i + 1;
+                distanciaAcumulada = 0;
+            }
+        }
+    }
+
+    // El giro que "abre" cada paso es el giro guardado en el paso anterior
+    const instrucciones = pasos.map((paso, idx) => {
+        const giroEntrada = idx === 0 ? null : pasos[idx - 1].giro;
+        let texto, icono;
+
+        if (idx === 0) { texto = "Iniciar recorrido"; icono = "bi-arrow-up-circle-fill"; }
+        else if (giroEntrada === null || Math.abs(giroEntrada) < UMBRAL_GIRO_LEVE) { texto = "Continúa derecho"; icono = "bi-arrow-up"; }
+        else if (giroEntrada >= UMBRAL_GIRO_FUERTE) { texto = "Gira fuerte a la derecha"; icono = "bi-arrow-right-square-fill"; }
+        else if (giroEntrada >= UMBRAL_GIRO_LEVE) { texto = "Gira a la derecha"; icono = "bi-arrow-up-right"; }
+        else if (giroEntrada <= -UMBRAL_GIRO_FUERTE) { texto = "Gira fuerte a la izquierda"; icono = "bi-arrow-left-square-fill"; }
+        else { texto = "Gira a la izquierda"; icono = "bi-arrow-up-left"; }
+
+        return { ...paso, texto, icono };
+    });
+
+    if (instrucciones.length > 0) {
+        instrucciones[instrucciones.length - 1].texto = "Has llegado a tu destino";
+        instrucciones[instrucciones.length - 1].icono = "bi-flag-fill";
+    }
+    return instrucciones;
+}
+
+// -------------------------------------------------------
+// 9.2 Flechas de dirección sobre la ruta (estilo Google Maps)
+// -------------------------------------------------------
+function dibujarFlechasDireccion(pathCoords) {
+    const capaDestino = (window.capas && window.capas.trayectorias) ? window.capas.trayectorias : window.map;
+
+    if (capaFlechas) { capaDestino.removeLayer(capaFlechas); capaFlechas = null; }
+    if (!pathCoords || pathCoords.length < 2) return;
+
+    const grupo = L.layerGroup();
+    let restante = SEPARACION_FLECHAS_M; // fuerza una flecha cerca del inicio
+
+    for (let i = 0; i < pathCoords.length - 1; i++) {
+        const a = pathCoords[i], b = pathCoords[i + 1];
+        const linea = turf.lineString([[a.lng, a.lat], [b.lng, b.lat]]);
+        const distTramo = turf.length(linea, { units: 'meters' });
+        const bearing = turf.bearing(turf.point([a.lng, a.lat]), turf.point([b.lng, b.lat]));
+
+        restante += distTramo;
+        while (restante >= SEPARACION_FLECHAS_M && distTramo > 0) {
+            const avance = distTramo - (restante - SEPARACION_FLECHAS_M);
+            const puntoFlecha = turf.along(linea, Math.max(0, avance), { units: 'meters' });
+            const [flng, flat] = puntoFlecha.geometry.coordinates;
+
+            const iconoFlecha = L.divIcon({
+                className: 'flecha-direccion-icono',
+                html: `<div style="transform: rotate(${bearing}deg);"><i class="bi bi-caret-up-fill" style="font-size:16px;color:#2563eb;"></i></div>`,
+                iconSize: [16, 16],
+                iconAnchor: [8, 8]
+            });
+
+            L.marker([flat, flng], { icon: iconoFlecha, interactive: false }).addTo(grupo);
+            restante -= SEPARACION_FLECHAS_M;
+        }
+    }
+
+    capaFlechas = grupo.addTo(capaDestino);
+}
+
+// -------------------------------------------------------
+// 9.3 Panel de instrucciones (turn-by-turn en vivo)
+// -------------------------------------------------------
+function renderizarPanelInstrucciones() {
+    const panel = document.getElementById('panelNavegacion');
+    if (!panel || pasosRuta.length === 0) return;
+
+    const paso = pasosRuta[pasoActualIndex];
+    const siguiente = pasosRuta[pasoActualIndex + 1];
+
+    panel.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i class="bi ${paso.icono} fs-2 me-2 text-primary"></i>
+            <div>
+                <div class="fw-bold">${paso.texto}</div>
+                <div class="text-muted small">${Math.round(paso.distancia)} m</div>
+            </div>
+        </div>
+        ${siguiente ? `<div class="text-muted small mt-1">Luego: ${siguiente.texto}</div>` : ''}
+    `;
+    panel.classList.remove('oculto');
+}
+
+function ocultarPanelInstrucciones() {
+    const panel = document.getElementById('panelNavegacion');
+    if (panel) panel.classList.add('oculto');
+    pasosRuta = [];
+    pasoActualIndex = 0;
+    if (capaFlechas) {
+        const capaDestino = (window.capas && window.capas.trayectorias) ? window.capas.trayectorias : window.map;
+        capaDestino.removeLayer(capaFlechas);
+        capaFlechas = null;
+    }
+}
+
+// Avanza el paso "actual" según qué tan cerca esté el usuario del final del tramo
+function actualizarPasoActualPorPosicion(latlngUsuario) {
+    if (pasosRuta.length === 0) return;
+    const ptUsuario = turf.point([latlngUsuario.lng, latlngUsuario.lat]);
+    const paso = pasosRuta[pasoActualIndex];
+    const pFin = turf.point([paso.coordFin.lng, paso.coordFin.lat]);
+    const dist = turf.distance(ptUsuario, pFin, { units: 'meters' });
+
+    if (dist < 12 && pasoActualIndex < pasosRuta.length - 1) {
+        pasoActualIndex++;
+    }
+    renderizarPanelInstrucciones();
+}
