@@ -4,6 +4,7 @@
 
 const archivosInteres = [
     '/resources/zonas_interes.geojson',
+    '/resources/carcamos.geojson',
     '/resources/Terminal1.geojson',
     '/resources/Terminal2.geojson' // Corregido el slash inicial
 ];
@@ -25,7 +26,11 @@ Promise.all(
 
         // [NUEVO] Verificamos si el archivo actual es una terminal
         const esTerminal = url.includes('Terminal');
-        const colorEstructura = esTerminal ? "#dc3545" : "#0d6efd"; // Rojo (#dc3545) para terminales, Azul (#0d6efd) para lo demás
+        const esCarcamo = url .includes('carcamo');
+
+        let colorEstructura = "#0d6efd";
+        if(esTerminal) colorEstructura = "#dc3545"; // Rojo (#dc3545) para terminales, Azul (#0d6efd) para lo demás
+        if(esCarcamo) colorEstructura = "#20c997"
 
         L.geoJSON(data, {
             style: { 
