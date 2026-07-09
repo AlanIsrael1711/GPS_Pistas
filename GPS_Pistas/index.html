@@ -2,8 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Pistas</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">    <title>GPS Pistas</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -36,6 +35,18 @@
         .fab-btn:active {
             transform: scale(0.92); 
         }
+
+        css#panelNavegacion {
+    /* Espacio real de "zona segura" en la parte de abajo (barra del navegador,
+       gestos de inicio en iPhone, etc.) para que el contenido no quede tapado */
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.fab-container {
+    /* Mismo ajuste para que los botones flotantes no queden pegados
+       al borde real de la pantalla en celulares con gestos */
+    bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+}
     </style>
 </head>
 <body>
