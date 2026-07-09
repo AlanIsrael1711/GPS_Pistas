@@ -282,3 +282,31 @@ Promise.all([
     }
  
 }).catch(err => console.error("Error cargando archivos GeoJSON:", err));
+
+// -------------------------------------------------------
+// Exponemos los polígonos de pista para validar SEGMENTOS
+// (no solo puntos) desde main.js, y un helper de intersección.
+// -------------------------------------------------------
+window.poligonosPistas = poligonosPistas;
+
+// Devuelve true si el segmento A->B cruza una zona de pista prohibida.
+// Si alguno de los extremos está en zona de puente autorizada, se permite
+// (mismo criterio que esUbicacionValida para puntos individuales).
+window.segmentoCruzaPista = function(latlngA, latlngB) {
+    if (!window.evitarPistasVuelo) return false;
+    if (!window.poligonosPistas || window.poligonosPistas.length === 0) return false;
+
+    const esPuenteA = window.esZonaPuente(latlngA.lat, latlngA.lng);
+    const esPuenteB = window.esZonaPuente(latlngB.lat, latlngB.lng);
+    if (esPuenteA || esPuenteB) return false;
+
+    const linea = turf.lineString([
+        [latlngA.lng, latlngA.lat],
+        [latlngB.lng, latlngB.lat]
+    ]);
+
+    for (let feat of window.poligonosPistas) {
+        if (turf.booleanIntersects(linea, feat)) return true;
+    }
+    return false;
+};

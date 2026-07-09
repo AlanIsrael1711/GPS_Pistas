@@ -117,6 +117,7 @@ socket.on('dibujar-ubicacion', (data) => {
         miMarcadorLocal.setLatLng([lat, lng]);
         if (marcador && trayectoria) {
             trazarRutaInteligente(miMarcadorLocal.getLatLng(), marcador.getLatLng());
+            actualizarPasoActualPorPosicion(miMarcadorLocal.getLatLng()); // [NUEVO]
         }
     } else {
         // El ícono direccional está definido en mapIconos.js (window.iconos.miUbicacion).
@@ -248,6 +249,7 @@ window.confirmarNuevoDestino = function() {
                 window.capas.destinos.removeLayer(marcador);
                 marcador = null;
                 if (trayectoria) { window.capas.trayectorias.removeLayer(trayectoria); trayectoria = null; }
+                ocultarPanelInstrucciones(); // [NUEVO]
             }
             trazandoRuta = false; 
         });
@@ -388,6 +390,10 @@ function trazarRutaInteligente(inicioGPS, finGPS) {
     pathCoords.push(finGPS);
 
     dibujarLineaEnMapa(pathCoords.map(pt => [pt.lat, pt.lng]));
+    // [NUEVO] Generamos instrucciones y flechas para esta ruta
+    pasosRuta = generarInstrucciones(pathCoords);
+    pasoActualIndex = 0;
+    renderizarPanelInstrucciones();
 }
 
 
@@ -598,7 +604,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // =======================================================
 
 let pasosRuta = [];      // [{coordInicio, coordFin, distancia, bearingSalida, giro, texto, icono}]
-let capaFlechas = null;  // Capa con las flechas sobre la trayectoria
 let pasoActualIndex = 0;
 
 const UMBRAL_GIRO_LEVE = 20;    // grados: a partir de aquí ya es "gira a la..."
@@ -670,45 +675,6 @@ function generarInstrucciones(pathCoords) {
 }
 
 // -------------------------------------------------------
-// 9.2 Flechas de dirección sobre la ruta (estilo Google Maps)
-// -------------------------------------------------------
-function dibujarFlechasDireccion(pathCoords) {
-    const capaDestino = (window.capas && window.capas.trayectorias) ? window.capas.trayectorias : window.map;
-
-    if (capaFlechas) { capaDestino.removeLayer(capaFlechas); capaFlechas = null; }
-    if (!pathCoords || pathCoords.length < 2) return;
-
-    const grupo = L.layerGroup();
-    let restante = SEPARACION_FLECHAS_M; // fuerza una flecha cerca del inicio
-
-    for (let i = 0; i < pathCoords.length - 1; i++) {
-        const a = pathCoords[i], b = pathCoords[i + 1];
-        const linea = turf.lineString([[a.lng, a.lat], [b.lng, b.lat]]);
-        const distTramo = turf.length(linea, { units: 'meters' });
-        const bearing = turf.bearing(turf.point([a.lng, a.lat]), turf.point([b.lng, b.lat]));
-
-        restante += distTramo;
-        while (restante >= SEPARACION_FLECHAS_M && distTramo > 0) {
-            const avance = distTramo - (restante - SEPARACION_FLECHAS_M);
-            const puntoFlecha = turf.along(linea, Math.max(0, avance), { units: 'meters' });
-            const [flng, flat] = puntoFlecha.geometry.coordinates;
-
-            const iconoFlecha = L.divIcon({
-                className: 'flecha-direccion-icono',
-                html: `<div style="transform: rotate(${bearing}deg);"><i class="bi bi-caret-up-fill" style="font-size:16px;color:#2563eb;"></i></div>`,
-                iconSize: [16, 16],
-                iconAnchor: [8, 8]
-            });
-
-            L.marker([flat, flng], { icon: iconoFlecha, interactive: false }).addTo(grupo);
-            restante -= SEPARACION_FLECHAS_M;
-        }
-    }
-
-    capaFlechas = grupo.addTo(capaDestino);
-}
-
-// -------------------------------------------------------
 // 9.3 Panel de instrucciones (turn-by-turn en vivo)
 // -------------------------------------------------------
 function renderizarPanelInstrucciones() {
@@ -736,11 +702,6 @@ function ocultarPanelInstrucciones() {
     if (panel) panel.classList.add('oculto');
     pasosRuta = [];
     pasoActualIndex = 0;
-    if (capaFlechas) {
-        const capaDestino = (window.capas && window.capas.trayectorias) ? window.capas.trayectorias : window.map;
-        capaDestino.removeLayer(capaFlechas);
-        capaFlechas = null;
-    }
 }
 
 // Avanza el paso "actual" según qué tan cerca esté el usuario del final del tramo
