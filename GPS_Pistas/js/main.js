@@ -49,9 +49,16 @@ fetch('/resources/mapa_conectado_completo.geojson')
     .then(r => r.json())
     .then(geojson => {
         let nodosTemp = [];
+        window.viasNombradas = window.viasNombradas || []; // [NUEVO]
         turf.featureEach(geojson, function(feature) {
             if (feature.geometry.type === 'LineString') {
                 const coords = feature.geometry.coordinates;
+
+                // [NUEVO] Si la vialidad tiene nombre, la registramos para navegación
+                const nombreVia = feature.properties && feature.properties.name;
+                if (nombreVia) {
+                    window.viasNombradas.push({ linea: feature, nombre: nombreVia });
+                }
 
                 // Peso de la vía completa (viene del geojson, default 1 si no existe)
                 const peso = (feature.properties && typeof feature.properties.peso === 'number')
@@ -640,11 +647,23 @@ function generarInstrucciones(pathCoords) {
 
         if (esUltimo || Math.abs(diffBearing) >= UMBRAL_GIRO_LEVE) {
             if (distanciaAcumulada >= DIST_MIN_SEGMENTO_M || pasos.length === 0 || esUltimo) {
+                const coordInicio = pathCoords[inicioSegmento];
+                const coordFin = pathCoords[i + 1];
+
+                // [NUEVO] Nombre de la vía en el punto medio de este paso
+                const puntoMedio = turf.midpoint(
+                    turf.point([coordInicio.lng, coordInicio.lat]),
+                    turf.point([coordFin.lng, coordFin.lat])
+                );
+                const [midLng, midLat] = puntoMedio.geometry.coordinates;
+                const nombreVia = buscarNombreViaCercana(midLat, midLng);
+
                 pasos.push({
-                    coordInicio: pathCoords[inicioSegmento],
-                    coordFin: pathCoords[i + 1],
+                    coordInicio,
+                    coordFin,
                     distancia: distanciaAcumulada,
-                    giro: esUltimo ? null : diffBearing
+                    giro: esUltimo ? null : diffBearing,
+                    nombreVia
                 });
                 inicioSegmento = i + 1;
                 distanciaAcumulada = 0;
@@ -652,17 +671,35 @@ function generarInstrucciones(pathCoords) {
         }
     }
 
-    // El giro que "abre" cada paso es el giro guardado en el paso anterior
     const instrucciones = pasos.map((paso, idx) => {
         const giroEntrada = idx === 0 ? null : pasos[idx - 1].giro;
-        let texto, icono;
+        const nombreAnterior = idx === 0 ? null : pasos[idx - 1].nombreVia;
+        const via = paso.nombreVia;
 
-        if (idx === 0) { texto = "Iniciar recorrido"; icono = "bi-arrow-up-circle-fill"; }
-        else if (giroEntrada === null || Math.abs(giroEntrada) < UMBRAL_GIRO_LEVE) { texto = "Continúa derecho"; icono = "bi-arrow-up"; }
-        else if (giroEntrada >= UMBRAL_GIRO_FUERTE) { texto = "Gira fuerte a la derecha"; icono = "bi-arrow-right-square-fill"; }
-        else if (giroEntrada >= UMBRAL_GIRO_LEVE) { texto = "Gira a la derecha"; icono = "bi-arrow-up-right"; }
-        else if (giroEntrada <= -UMBRAL_GIRO_FUERTE) { texto = "Gira fuerte a la izquierda"; icono = "bi-arrow-left-square-fill"; }
-        else { texto = "Gira a la izquierda"; icono = "bi-arrow-up-left"; }
+        let texto, icono;
+        const cambioDeVia = via && via !== nombreAnterior;
+
+        if (idx === 0) {
+            texto = via ? `Inicia tu recorrido por ${via}` : "Inicia tu recorrido";
+            icono = "bi-arrow-up-circle-fill";
+        } else if (giroEntrada === null || Math.abs(giroEntrada) < UMBRAL_GIRO_LEVE) {
+            texto = via
+                ? (cambioDeVia ? `Continúa por ${via}` : "Continúa derecho")
+                : "Continúa derecho";
+            icono = "bi-arrow-up";
+        } else if (giroEntrada >= UMBRAL_GIRO_FUERTE) {
+            texto = via ? `Gira fuerte a la derecha hacia ${via}` : "Gira fuerte a la derecha";
+            icono = "bi-arrow-right-square-fill";
+        } else if (giroEntrada >= UMBRAL_GIRO_LEVE) {
+            texto = via ? `Gira a la derecha hacia ${via}` : "Gira a la derecha";
+            icono = "bi-arrow-up-right";
+        } else if (giroEntrada <= -UMBRAL_GIRO_FUERTE) {
+            texto = via ? `Gira fuerte a la izquierda hacia ${via}` : "Gira fuerte a la izquierda";
+            icono = "bi-arrow-left-square-fill";
+        } else {
+            texto = via ? `Gira a la izquierda hacia ${via}` : "Gira a la izquierda";
+            icono = "bi-arrow-up-left";
+        }
 
         return { ...paso, texto, icono };
     });
@@ -683,6 +720,7 @@ function renderizarPanelInstrucciones() {
 
     const paso = pasosRuta[pasoActualIndex];
     const siguiente = pasosRuta[pasoActualIndex + 1];
+    const ubicacionActual = window._ubicacionActualTexto; // [NUEVO]
 
     panel.innerHTML = `
         <div class="d-flex align-items-center">
@@ -715,5 +753,33 @@ function actualizarPasoActualPorPosicion(latlngUsuario) {
     if (dist < 12 && pasoActualIndex < pasosRuta.length - 1) {
         pasoActualIndex++;
     }
+    // [NUEVO] Ubicación actual en tiempo real (puede diferir del "nombreVia" del paso
+    // si el usuario aún no llega al tramo con nombre siguiente)
+    window._ubicacionActualTexto = buscarNombreViaCercana(latlngUsuario.lat, latlngUsuario.lng);
+
     renderizarPanelInstrucciones();
+}
+// -------------------------------------------------------
+// Busca el nombre de la vía (rodaje o vialidad) más cercana
+// a un punto dado. Se usa tanto para "dónde estás" en tiempo
+// real como para nombrar cada paso de las instrucciones.
+// -------------------------------------------------------
+const DISTANCIA_MAXIMA_VIA_M = 30; // más allá de esto, no se asume ninguna vía
+
+function buscarNombreViaCercana(lat, lng) {
+    if (!window.viasNombradas || window.viasNombradas.length === 0) return null;
+
+    const punto = turf.point([lng, lat]);
+    let mejorNombre = null;
+    let mejorDistancia = Infinity;
+
+    for (let via of window.viasNombradas) {
+        const dist = turf.pointToLineDistance(punto, via.linea, { units: 'meters' });
+        if (dist < mejorDistancia) {
+            mejorDistancia = dist;
+            mejorNombre = via.nombre;
+        }
+    }
+
+    return mejorDistancia <= DISTANCIA_MAXIMA_VIA_M ? mejorNombre : null;
 }

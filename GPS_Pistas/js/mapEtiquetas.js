@@ -1,31 +1,61 @@
 // =======================================================
-// CARGA DE ETIQUETAS INDEPENDIENTES DESDE GEOJSON
+// CARGA DE ETIQUETAS DE RODAJES (TAXIWAYS) DESDE GEOJSON
 // =======================================================
 
-// Cambia la ruta por el nombre exacto de tu archivo
-fetch('/resources/rodajes.geojson') 
+const DISTANCIA_REPETICION_RODAJE_M = 150;
+const LONGITUD_MINIMA_REPETICION_M = 200;
+
+// [NUEVO] Lista global de vialidades/rodajes CON NOMBRE LARGO, usada por
+// main.js para saber "por dónde vas" durante la navegación.
+window.viasNombradas = window.viasNombradas || [];
+
+fetch('/resources/mapa_conecado_completo.geojson')
     .then(r => r.json())
-    .then(dataEtiquetas => {
-        L.geoJSON(dataEtiquetas, {
-            // pointToLayer se usa para transformar Puntos GeoJSON en algo personalizado
-            pointToLayer: function(feature, latlng) {
-                // Lee la propiedad 'nombre', 'name' o 'texto' de tu archivo
-                const textoEtiqueta = feature.properties.name || '';
+    .then(dataRodajes => {
+        turf.featureEach(dataRodajes, function(feature) {
+            if (!feature.geometry || feature.geometry.type !== 'LineString') return;
 
-                if (!textoEtiqueta) return null; // Si el punto no tiene texto, lo ignoramos
+            const props = feature.properties || {};
+            const textoEtiqueta = props.ref || '';       // Abreviado, para la etiqueta visual
+            const nombreLargo = props.name || props.ref; // Largo, para la navegación
 
-                // Retornamos un marcador invisible que SOLO contiene el texto
-                return L.marker(latlng, {
-                    icon: L.divIcon({
-                        className: 'etiqueta-pista', // Reutilizamos tu clase CSS sin fondo
-                        html: textoEtiqueta,
-                        iconSize: [0, 0], // Evita que Leaflet le ponga una caja invisible gigante
-                        iconAnchor: [0, 0] // Puedes ajustar esto si quieres centrar el texto ej: [20, 10]
-                    }),
-                    interactive: false // CRÍTICO: Evita que el texto bloquee tus clics en el mapa
+            // [NUEVO] Registramos el tramo con nombre para búsqueda por cercanía,
+            // sin importar si tiene "ref" o no, siempre que tenga algún nombre.
+            if (nombreLargo) {
+                window.viasNombradas.push({
+                    linea: feature,
+                    nombre: nombreLargo
                 });
             }
-        }).addTo(window.map); // Lo añadimos directo al mapa
-        console.log("Etiquetas independientes cargadas con éxito.");
+
+            if (!textoEtiqueta) return; // Sin ref, no se dibuja etiqueta visual
+
+            const longitudM = turf.length(feature, { units: 'meters' });
+            const puntosEtiqueta = [turf.along(feature, longitudM / 2, { units: 'meters' })];
+
+            if (longitudM > LONGITUD_MINIMA_REPETICION_M) {
+                let distanciaAcumulada = DISTANCIA_REPETICION_RODAJE_M / 2;
+                while (distanciaAcumulada < longitudM) {
+                    if (Math.abs(distanciaAcumulada - longitudM / 2) > DISTANCIA_REPETICION_RODAJE_M / 2) {
+                        puntosEtiqueta.push(turf.along(feature, distanciaAcumulada, { units: 'meters' }));
+                    }
+                    distanciaAcumulada += DISTANCIA_REPETICION_RODAJE_M;
+                }
+            }
+
+            puntosEtiqueta.forEach(punto => {
+                const [lng, lat] = punto.geometry.coordinates;
+                L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: 'etiqueta-pista',
+                        html: textoEtiqueta,
+                        iconSize: [0, 0],
+                        iconAnchor: [0, 0]
+                    }),
+                    interactive: false
+                }).addTo(window.map);
+            });
+        });
+        console.log(`Etiquetas de rodajes cargadas. ${window.viasNombradas.length} vías registradas para navegación.`);
     })
-    .catch(err => console.warn("No se encontró archivo de etiquetas:", err));
+    .catch(err => console.warn("No se encontró archivo de rodajes:", err));
