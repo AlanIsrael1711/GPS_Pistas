@@ -138,9 +138,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             const directorio = window.directorioLugares || [];
-            const coincidencias = directorio.filter(lugar =>
-                lugar && lugar.nombre && lugar.nombre.toLowerCase().includes(texto)
-            ).slice(0, 5);
+const coincidencias = directorio.filter(lugar => {
+    if (!lugar || !lugar.nombre) return false;
+    const coincideNombre = lugar.nombre.toLowerCase().includes(texto);
+    const coincideAlias = lugar.alias && lugar.alias.toLowerCase().includes(texto);
+    return coincideNombre || coincideAlias;
+}).slice(0, 5);
 
             if (coincidencias.length > 0) {
                 listaResultados.innerHTML = '<li class="p-2 text-muted small fw-bold bg-light border-bottom">Resultados</li>';

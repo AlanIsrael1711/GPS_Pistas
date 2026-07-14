@@ -2,30 +2,42 @@
 // CARGA DE ETIQUETAS DE RODAJES (TAXIWAYS) DESDE GEOJSON
 // =======================================================
 
-const DISTANCIA_REPETICION_RODAJE_M = 150;
-const LONGITUD_MINIMA_REPETICION_M = 200;
+const DISTANCIA_REPETICION_RODAJE_M = 450;
+const LONGITUD_MINIMA_REPETICION_M = 400;
 
-// [NUEVO] Lista global de vialidades/rodajes CON NOMBRE LARGO, usada por
-// main.js para saber "por dónde vas" durante la navegación.
 window.viasNombradas = window.viasNombradas || [];
+window.directorioLugares = window.directorioLugares || []; // [NUEVO] por si este archivo carga antes que los demás
 
-fetch('/resources/mapa_conecado_completo.geojson')
+fetch('/resources/vialidades_unificadas.geojson')
     .then(r => r.json())
     .then(dataRodajes => {
         turf.featureEach(dataRodajes, function(feature) {
             if (!feature.geometry || feature.geometry.type !== 'LineString') return;
 
             const props = feature.properties || {};
-            const textoEtiqueta = props.ref || '';       // Abreviado, para la etiqueta visual
-            const nombreLargo = props.name || props.ref; // Largo, para la navegación
+            const textoEtiqueta = props.ref || '';       // Abreviado: para la etiqueta visual en el mapa
+            const nombreLargo = props.name || props.ref; // Largo: para navegación y para mostrar en el buscador
 
-            // [NUEVO] Registramos el tramo con nombre para búsqueda por cercanía,
-            // sin importar si tiene "ref" o no, siempre que tenga algún nombre.
             if (nombreLargo) {
-                window.viasNombradas.push({
-                    linea: feature,
-                    nombre: nombreLargo
-                });
+                window.viasNombradas.push({ linea: feature, nombre: nombreLargo });
+            }
+
+            // [NUEVO] Registro en el buscador: se puede encontrar tecleando el
+            // nombre completo ("Bravo 7") O el abreviado ("B7"). Evitamos
+            // duplicados cuando el mismo rodaje viene partido en varios
+            // segmentos de GeoJSON (comparamos por nombre completo).
+            if (nombreLargo) {
+                const yaExiste = window.directorioLugares.some(l => l.nombre === nombreLargo);
+                if (!yaExiste) {
+                    const centroPunto = turf.along(feature, turf.length(feature, { units: 'meters' }) / 2, { units: 'meters' });
+                    const [lng, lat] = centroPunto.geometry.coordinates;
+                    window.directorioLugares.push({
+                        nombre: nombreLargo,
+                        alias: props.ref || null, // Búsqueda también por el nombre corto
+                        centro: { lat, lng },
+                        feature: feature
+                    });
+                }
             }
 
             if (!textoEtiqueta) return; // Sin ref, no se dibuja etiqueta visual
