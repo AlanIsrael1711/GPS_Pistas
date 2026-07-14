@@ -45,19 +45,30 @@ let nodosCaminos = null;
 // penalización se calcula en tiempo real dentro del A* (sección 5),
 // porque depende de dónde está parado el usuario en cada trazado.
 
-fetch('/resources/vialidades_unificadas.geojson')
+fetch('/resources/vialidades_final_completo.geojson')
     .then(r => r.json())
     .then(geojson => {
         let nodosTemp = [];
-        window.viasNombradas = window.viasNombradas || []; // [NUEVO]
+        window.viasNombradas = window.viasNombradas || [];
+        window.viasConLimite = window.viasConLimite || []; // [NUEVO]
         turf.featureEach(geojson, function(feature) {
             if (feature.geometry.type === 'LineString') {
                 const coords = feature.geometry.coordinates;
 
-                // [NUEVO] Si la vialidad tiene nombre, la registramos para navegación
+                // Si la vialidad tiene nombre, la registramos para navegación
                 const nombreVia = feature.properties && feature.properties.name;
                 if (nombreVia) {
                     window.viasNombradas.push({ linea: feature, nombre: nombreVia });
+                }
+
+                // [NUEVO] Si la vialidad tiene límite de velocidad, la registramos
+                // para mostrar el letrero de km/h en tiempo real.
+                const velocidadRaw = feature.properties && feature.properties.velocidad;
+                const velocidadNum = velocidadRaw !== undefined && velocidadRaw !== null
+                    ? parseInt(velocidadRaw, 10)
+                    : null;
+                if (velocidadNum && !isNaN(velocidadNum)) {
+                    window.viasConLimite.push({ linea: feature, maxspeed: velocidadNum });
                 }
 
                 // Peso de la vía completa (viene del geojson, default 1 si no existe)
@@ -104,6 +115,11 @@ if (navigator.geolocation) {
             // Actualización inmediata y fluida del marcador local sin esperar al servidor
             if (miMarcadorLocal) miMarcadorLocal.setLatLng([latitude, longitude]);
 
+            // [NUEVO] El límite de velocidad se actualiza de inmediato en cada
+            // lectura del GPS, igual que el marcador — no se espera el throttle
+            // del socket, porque ver el km/h correcto en tiempo real importa.
+            actualizarLimiteVelocidad(latitude, longitude);
+
             if (ahora - ultimoEnvioGps > LIMITE_LATENCIA_MS) {
                 if (typeof window.desbloquearZonaOrigen === 'function') window.desbloquearZonaOrigen(latitude, longitude);
                 socket.emit('actualizar-ubicacion', { lat: latitude, lng: longitude });
@@ -119,6 +135,8 @@ if (navigator.geolocation) {
 socket.on('dibujar-ubicacion', (data) => {
     const { lat, lng } = data;
     const capaDestino = (window.capas && window.capas.usuarios) ? window.capas.usuarios : window.map;
+
+    actualizarLimiteVelocidad(lat, lng) // [NUEVO] — siempre, sin depender de rutas activas
 
     if (miMarcadorLocal) {
         miMarcadorLocal.setLatLng([lat, lng]);
@@ -782,4 +800,45 @@ function buscarNombreViaCercana(lat, lng) {
     }
 
     return mejorDistancia <= DISTANCIA_MAXIMA_VIA_M ? mejorNombre : null;
+}
+
+// -------------------------------------------------------
+// [NUEVO] Límite de velocidad vigente según la posición actual
+// -------------------------------------------------------
+const DISTANCIA_MAXIMA_LIMITE_M = 25;
+
+function buscarLimiteVelocidadCercano(lat, lng) {
+    if (!window.viasConLimite || window.viasConLimite.length === 0) return null;
+
+    const punto = turf.point([lng, lat]);
+    let mejorLimite = null;
+    let mejorDistancia = Infinity;
+
+    for (let via of window.viasConLimite) {
+        const dist = turf.pointToLineDistance(punto, via.linea, { units: 'meters' });
+        if (dist < mejorDistancia) {
+            mejorDistancia = dist;
+            mejorLimite = via.maxspeed;
+        }
+    }
+
+    return mejorDistancia <= DISTANCIA_MAXIMA_LIMITE_M ? mejorLimite : null;
+}
+
+let ultimoLimiteMostrado = undefined;
+
+function actualizarLimiteVelocidad(lat, lng) {
+    const limite = buscarLimiteVelocidadCercano(lat, lng);
+    if (limite === ultimoLimiteMostrado) return;
+    ultimoLimiteMostrado = limite;
+
+    const letrero = document.getElementById('letreroLimiteVelocidad');
+    if (!letrero) return;
+
+    if (limite === null) {
+        letrero.classList.add('oculto');
+    } else {
+        letrero.querySelector('.limite-numero').textContent = limite;
+        letrero.classList.remove('oculto');
+    }
 }

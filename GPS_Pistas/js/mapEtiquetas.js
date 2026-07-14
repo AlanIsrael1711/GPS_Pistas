@@ -8,7 +8,7 @@ const LONGITUD_MINIMA_REPETICION_M = 400;
 window.viasNombradas = window.viasNombradas || [];
 window.directorioLugares = window.directorioLugares || []; // [NUEVO] por si este archivo carga antes que los demás
 
-fetch('/resources/vialidades_unificadas.geojson')
+fetch('/resources/vialidades_final_completo.geojson')
     .then(r => r.json())
     .then(dataRodajes => {
         turf.featureEach(dataRodajes, function(feature) {
