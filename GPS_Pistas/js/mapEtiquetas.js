@@ -2,11 +2,8 @@
 // CARGA DE ETIQUETAS DE RODAJES (TAXIWAYS) DESDE GEOJSON
 // =======================================================
 
-const DISTANCIA_REPETICION_RODAJE_M = 450;
-const LONGITUD_MINIMA_REPETICION_M = 400;
-
 window.viasNombradas = window.viasNombradas || [];
-window.directorioLugares = window.directorioLugares || []; // [NUEVO] por si este archivo carga antes que los demás
+window.directorioLugares = window.directorioLugares || [];
 
 fetch('/resources/vialidades_final_completo.geojson')
     .then(r => r.json())
@@ -15,17 +12,16 @@ fetch('/resources/vialidades_final_completo.geojson')
             if (!feature.geometry || feature.geometry.type !== 'LineString') return;
 
             const props = feature.properties || {};
-            const textoEtiqueta = props.ref || '';       // Abreviado: para la etiqueta visual en el mapa
-            const nombreLargo = props.name || props.ref; // Largo: para navegación y para mostrar en el buscador
+            
+            // [MODIFICADO] Toma 'ref' para visualizar (abreviado), si no existe usa 'name'
+            const textoEtiqueta = props.ref || props.name || '';       
+            // [MODIFICADO] El nombre largo siempre prioriza 'name' para el buscador interno
+            const nombreLargo = props.name || props.ref || ''; 
 
             if (nombreLargo) {
                 window.viasNombradas.push({ linea: feature, nombre: nombreLargo });
             }
 
-            // [NUEVO] Registro en el buscador: se puede encontrar tecleando el
-            // nombre completo ("Bravo 7") O el abreviado ("B7"). Evitamos
-            // duplicados cuando el mismo rodaje viene partido en varios
-            // segmentos de GeoJSON (comparamos por nombre completo).
             if (nombreLargo) {
                 const yaExiste = window.directorioLugares.some(l => l.nombre === nombreLargo);
                 if (!yaExiste) {
@@ -33,41 +29,23 @@ fetch('/resources/vialidades_final_completo.geojson')
                     const [lng, lat] = centroPunto.geometry.coordinates;
                     window.directorioLugares.push({
                         nombre: nombreLargo,
-                        alias: props.ref || null, // Búsqueda también por el nombre corto
+                        alias: props.ref || null, 
                         centro: { lat, lng },
                         feature: feature
                     });
                 }
             }
 
-            if (!textoEtiqueta) return; // Sin ref, no se dibuja etiqueta visual
+            if (!textoEtiqueta) return; 
 
-            const longitudM = turf.length(feature, { units: 'meters' });
-            const puntosEtiqueta = [turf.along(feature, longitudM / 2, { units: 'meters' })];
-
-            if (longitudM > LONGITUD_MINIMA_REPETICION_M) {
-                let distanciaAcumulada = DISTANCIA_REPETICION_RODAJE_M / 2;
-                while (distanciaAcumulada < longitudM) {
-                    if (Math.abs(distanciaAcumulada - longitudM / 2) > DISTANCIA_REPETICION_RODAJE_M / 2) {
-                        puntosEtiqueta.push(turf.along(feature, distanciaAcumulada, { units: 'meters' }));
-                    }
-                    distanciaAcumulada += DISTANCIA_REPETICION_RODAJE_M;
-                }
-            }
-
-            puntosEtiqueta.forEach(punto => {
-                const [lng, lat] = punto.geometry.coordinates;
-                L.marker([lat, lng], {
-                    icon: L.divIcon({
-                        className: 'etiqueta-pista',
-                        html: textoEtiqueta,
-                        iconSize: [0, 0],
-                        iconAnchor: [0, 0]
-                    }),
-                    interactive: false
-                }).addTo(window.map);
-            });
+            // Se registra la etiqueta agrupando los segmentos por su nombre real, 
+            // pero imprimiendo en pantalla la variable textoEtiqueta (el 'ref' abreviado).
+            registrarEtiquetaSiguiendoVista(nombreLargo, [feature], window.map, textoEtiqueta, 'etiqueta-pista');
+            
+            // NOTA: Se eliminó todo el bloque de "longitudM" y el bucle "while" que causaba un error crítico (crash) en la aplicación.
         });
+        
+        actualizarEtiquetasSiguiendoVista(); 
         console.log(`Etiquetas de rodajes cargadas. ${window.viasNombradas.length} vías registradas para navegación.`);
     })
     .catch(err => console.warn("No se encontró archivo de rodajes:", err));
