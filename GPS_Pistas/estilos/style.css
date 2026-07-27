@@ -436,3 +436,89 @@
        al borde real de la pantalla en celulares con gestos */
     bottom: calc(30px + env(safe-area-inset-bottom, 0px));
 }
+
+#letreroLimiteVelocidad {
+    position: fixed;
+    top: 90px;
+    left: 20px;
+    z-index: 1030;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 5px solid #dc3545;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#letreroLimiteVelocidad.oculto {
+    opacity: 0;
+    transform: scale(0.8);
+    pointer-events: none;
+}
+
+#letreroLimiteVelocidad .limite-numero {
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1;
+    color: #111827;
+}
+
+#letreroLimiteVelocidad .limite-unidad {
+    font-size: 9px;
+    font-weight: 600;
+    color: #6b7280;
+    margin-top: -2px;
+}
+/* Contenedor del botón izquierdo */
+.fab-container-left {
+    position: fixed;
+    bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+    left: 20px;
+    z-index: 1040;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* Estilos para los íconos de la simbología */
+.simbologia-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.simbologia-linea {
+    width: 28px;
+    height: 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.simbologia-caja {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    border: 2px solid transparent;
+}
+
+.simbologia-texto {
+    margin-left: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #495057;
+    line-height: 1.2;
+}
+
+.simbologia-velocidad {
+    display: block;
+    font-size: 0.75rem;
+    color: #6c757d;
+    font-weight: 400;
+    margin-top: 2px;
+}
