@@ -78,11 +78,86 @@
 
     <div id="map"></div>
 
-    <!-- Botón flotante para Simbología (Izquierda) -->
-    <div class="fab-container-left">
-        <button class="fab-btn bg-white shadow-lg" type="button" data-bs-toggle="offcanvas" data-bs-target="#panelSimbologia" aria-controls="panelSimbologia" aria-label="Ver Simbología">
-            <i class="bi bi-map-fill fs-4 text-dark"></i>
-        </button>
+    <!-- Pestaña y Panel de Simbología Flotante -->
+    <div id="wrapperSimbologia" class="panel-simbologia-wrapper">
+        
+        <!-- El cuerpo del panel (inicia colapsado) -->
+        <div class="cuerpo-simbologia custom-scrollbar">
+            <div class="simbologia-inner">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 fw-bold text-primary" style="font-size: 0.8rem;"><i class="bi bi-map-fill me-1"></i> Simbología</h6>
+                </div>
+                
+                <div class="simbologia-categoria">Vialidades</div>
+                <div class="simbologia-item-compacto">
+                    <div class="simbologia-linea-compacta" style="background-color: #12777d;"></div>
+                    <div class="simbologia-texto-compacto">Perimetral Norte <span class="simbologia-velocidad-compacta">40 km/h</span></div>
+                </div>
+                <div class="simbologia-item-compacto">
+                    <div class="simbologia-linea-compacta" style="background-color: #f4820d;"></div>
+                    <div class="simbologia-texto-compacto">Perimetral Sur <span class="simbologia-velocidad-compacta">30 km/h</span></div>
+                </div>
+                <div class="simbologia-item-compacto">
+                    <div class="simbologia-linea-compacta" style="background-color: #3cb54a;"></div>
+                    <div class="simbologia-texto-compacto">Externa <span class="simbologia-velocidad-compacta">20 km/h</span></div>
+                </div>
+                <div class="simbologia-item-compacto mb-3">
+                    <div class="simbologia-linea-compacta" style="background-color: #29b6f6;"></div>
+                    <div class="simbologia-texto-compacto">Interna T1 y T2 <span class="simbologia-velocidad-compacta">10 km/h</span></div>
+                </div>
+
+                <div class="simbologia-categoria">Aeronáutica</div>
+                <div class="simbologia-item-compacto">
+                    <div class="simbologia-caja-compacta" style="background-color: rgba(220, 53, 69, 0.2); border-color: #dc3545;"></div>
+                    <div class="simbologia-texto-compacto">Pistas de Vuelo</div>
+                </div>
+                <div class="simbologia-item-compacto">
+                    <div class="simbologia-caja-compacta" style="background-color: rgba(255, 193, 7, 0.18); border-color: #dc3545;"></div>
+                    <div class="simbologia-texto-compacto">Plataformas</div>
+                </div>
+                <div class="simbologia-item-compacto">
+                    <div class="simbologia-caja-compacta" style="background-color: transparent; border-color: #1e293b;"></div>
+                    <div class="simbologia-texto-compacto">Posiciones</div>
+                </div>
+                <div class="simbologia-item-compacto mb-3">
+                    <div class="simbologia-linea-compacta" style="background-color: transparent; border-top: 3px dashed #6c757d;"></div>
+                    <div class="simbologia-texto-compacto">Rodajes (Taxiways)</div>
+                </div>
+
+                <div class="simbologia-categoria">Edificios / Zonas</div>
+                <div class="simbologia-item-compacto">
+                    <div class="simbologia-caja-compacta" style="background-color: rgba(220, 53, 69, 0.75); border-color: #dc3545;"></div>
+                    <div class="simbologia-texto-compacto">Terminales T1/T2</div>
+                </div>
+                <div class="simbologia-item-compacto">
+                    <div class="simbologia-caja-compacta" style="background-color: rgba(13, 110, 253, 0.75); border-color: #0d6efd;"></div>
+                    <div class="simbologia-texto-compacto">Hangares/Estructuras</div>
+                </div>
+                <div class="simbologia-item-compacto">
+                    <div class="simbologia-caja-compacta" style="background-color: rgba(32, 201, 151, 0.75); border-color: #20c997;"></div>
+                    <div class="simbologia-texto-compacto">Cárcamos</div>
+                </div>
+                <div class="simbologia-item-compacto">
+                    <div class="simbologia-caja-compacta" style="background-color: rgba(141, 139, 85, 0.5); border-color: #28a745;"></div>
+                    <div class="simbologia-texto-compacto">Áreas Verdes <span class="simbologia-velocidad-compacta">(Prohibido)</span></div>
+                </div>
+                <div class="simbologia-item-compacto">
+                    <div class="simbologia-caja-compacta" style="background-color: rgba(33, 150, 243, 0.35); border-color: #0d47a1;"></div>
+                    <div class="simbologia-texto-compacto">Zonas Peligro</div>
+                </div>
+                <div class="simbologia-item-compacto mb-2">
+                    <div class="simbologia-caja-compacta" style="background-color: rgba(220, 53, 69, 0.35); border-color: #dc3545;"></div>
+                    <div class="simbologia-texto-compacto">Zonas HS <span class="simbologia-velocidad-compacta">Hot Spots</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- La Pestaña (gatillo) -->
+        <div class="pestana-simbologia bg-white shadow-sm" onclick="document.getElementById('wrapperSimbologia').classList.toggle('abierto')">
+            <i class="bi bi-map text-primary fw-bold" style="font-size: 1.2rem;"></i>
+            <i class="bi bi-chevron-right ms-1 text-secondary flecha-pestaña" style="font-size: 0.8rem;"></i>
+        </div>
+        
     </div>
         
     <div class="fab-container">
@@ -148,88 +223,6 @@
                 </div>
             </div> 
             <button class="btn btn-dark w-100 mt-auto rounded-pill py-2 fw-bold" type="button" data-bs-dismiss="offcanvas">Aplicar y Cerrar</button>
-        </div>
-    </div>
-
-    <!-- Panel Lateral Izquierdo: Simbología -->
-    <div class="offcanvas offcanvas-start" tabindex="-1" id="panelSimbologia" aria-labelledby="panelSimbologiaLabel">
-        <div class="offcanvas-header border-bottom bg-light">
-            <h5 class="offcanvas-title fw-bold" id="panelSimbologiaLabel">
-                <i class="bi bi-list-stars me-2 text-primary"></i>Simbología del Mapa
-            </h5>
-            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
-        </div>
-        
-        <div class="offcanvas-body">
-            
-            <!-- Categoría 1: Vialidades y Velocidades -->
-            <h6 class="fw-bold text-secondary text-uppercase mb-3 mt-1" style="font-size: 0.75rem; letter-spacing: 0.5px;">Vialidades y Límites</h6>
-            
-            <div class="simbologia-item">
-                <div class="simbologia-linea" style="background-color: #12777d;"></div>
-                <div class="simbologia-texto">Vialidad Perimetral Norte <span class="simbologia-velocidad">40 km/h</span></div>
-            </div>
-            <div class="simbologia-item">
-                <div class="simbologia-linea" style="background-color: #f4820d;"></div>
-                <div class="simbologia-texto">Vialidad Perimetral Sur <span class="simbologia-velocidad">30 km/h</span></div>
-            </div>
-            <div class="simbologia-item">
-                <div class="simbologia-linea" style="background-color: #3cb54a;"></div>
-                <div class="simbologia-texto">Vialidad Externa <span class="simbologia-velocidad">20 km/h</span></div>
-            </div>
-            <div class="simbologia-item mb-4">
-                <div class="simbologia-linea" style="background-color: #29b6f6;"></div>
-                <div class="simbologia-texto">Vialidad Interna T1 y T2 <span class="simbologia-velocidad">10 km/h</span></div>
-            </div>
-
-            <!-- Categoría 2: Infraestructura Aeronáutica -->
-            <h6 class="fw-bold text-secondary text-uppercase mb-3" style="font-size: 0.75rem; letter-spacing: 0.5px;">Infraestructura Aeronáutica</h6>
-            
-            <div class="simbologia-item">
-                <div class="simbologia-caja" style="background-color: rgba(220, 53, 69, 0.2); border-color: #dc3545;"></div>
-                <div class="simbologia-texto">Pistas de Vuelo <span class="simbologia-velocidad">Paso restringido</span></div>
-            </div>
-            <div class="simbologia-item">
-                <div class="simbologia-caja" style="background-color: rgba(255, 193, 7, 0.18); border-color: #dc3545;"></div>
-                <div class="simbologia-texto">Plataformas</div>
-            </div>
-            <div class="simbologia-item">
-                <div class="simbologia-caja" style="background-color: transparent; border-color: #1e293b;"></div>
-                <div class="simbologia-texto">Posiciones de Aeronaves</div>
-            </div>
-            <div class="simbologia-item mb-4">
-                <div class="simbologia-linea" style="background-color: #6c757d; border-top: 2px dashed #fff;"></div>
-                <div class="simbologia-texto">Calles de Rodaje (Taxiways)</div>
-            </div>
-
-            <!-- Categoría 3: Edificios y Zonas Especiales -->
-            <h6 class="fw-bold text-secondary text-uppercase mb-3" style="font-size: 0.75rem; letter-spacing: 0.5px;">Edificios y Zonas Especiales</h6>
-            
-            <div class="simbologia-item">
-                <div class="simbologia-caja" style="background-color: rgba(220, 53, 69, 0.75); border-color: #dc3545;"></div>
-                <div class="simbologia-texto">Terminales (T1 / T2)</div>
-            </div>
-            <div class="simbologia-item">
-                <div class="simbologia-caja" style="background-color: rgba(13, 110, 253, 0.75); border-color: #0d6efd;"></div>
-                <div class="simbologia-texto">Edificios y Hangares</div>
-            </div>
-            <div class="simbologia-item">
-                <div class="simbologia-caja" style="background-color: rgba(32, 201, 151, 0.75); border-color: #20c997;"></div>
-                <div class="simbologia-texto">Cárcamos</div>
-            </div>
-            <div class="simbologia-item">
-                <div class="simbologia-caja" style="background-color: rgba(141, 139, 85, 0.5); border-color: #28a745;"></div>
-                <div class="simbologia-texto">Áreas Verdes <span class="simbologia-velocidad">Prohibido el paso</span></div>
-            </div>
-            <div class="simbologia-item">
-                <div class="simbologia-caja" style="background-color: rgba(33, 150, 243, 0.35); border-color: #0d47a1;"></div>
-                <div class="simbologia-texto">Zonas de Peligro</div>
-            </div>
-            <div class="simbologia-item mb-4">
-                <div class="simbologia-caja" style="background-color: rgba(220, 53, 69, 0.35); border-color: #dc3545;"></div>
-                <div class="simbologia-texto">Zonas HS <span class="simbologia-velocidad">Hot Spots</span></div>
-            </div>
-
         </div>
     </div>
 
