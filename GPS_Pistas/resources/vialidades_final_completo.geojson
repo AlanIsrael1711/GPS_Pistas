@@ -333,7 +333,6 @@
       "properties": {
         "@id": "way/941398983",
         "highway": "unclassified",
-        "name": "Avenida Texcoco",
         "oneway": "no",
         "surface": "asphalt",
         "peso": 2
@@ -801,7 +800,6 @@
         "@id": "way/681150372",
         "access": "private",
         "highway": "unclassified",
-        "name": "Avenida Texcoco",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -2067,7 +2065,6 @@
         "@id": "way/846228540",
         "highway": "tertiary",
         "lanes": "1",
-        "name": "Avenida Quetzalcóatl",
         "surface": "asphalt",
         "peso": 2
       },
@@ -5041,10 +5038,8 @@
       "type": "Feature",
       "properties": {
         "@id": "way/846218980",
-        "alt_name": "Calle Sonora",
         "highway": "tertiary",
         "lanes": "2",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -5891,10 +5886,8 @@
       "type": "Feature",
       "properties": {
         "@id": "way/421567683",
-        "alt_name": "Calle Sonora",
         "highway": "tertiary",
         "lanes": "4",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -6017,7 +6010,6 @@
         "highway": "tertiary",
         "lanes": "2",
         "layer": "-1",
-        "name": "Calle Capitán Piloto Aviador Carlos León",
         "oneway": "yes",
         "surface": "asphalt",
         "tunnel": "yes",
@@ -8424,10 +8416,8 @@
       "type": "Feature",
       "properties": {
         "@id": "way/421567684",
-        "alt_name": "Calle Sonora",
         "highway": "unclassified",
         "lanes": "3",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -8562,7 +8552,6 @@
         "@id": "way/849904007",
         "highway": "tertiary",
         "lanes": "3",
-        "name": "Calle Sonora",
         "oneway": "yes",
         "surface": "asphalt",
         "turn:lanes": "left|through|right",
@@ -10402,11 +10391,9 @@
       "type": "Feature",
       "properties": {
         "@id": "way/749441809",
-        "alt_name": "Calle Sonora",
         "destination": "Salidas;Puertas F1, F2 y F3",
         "highway": "unclassified",
         "lanes": "2",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -12939,7 +12926,6 @@
         "highway": "tertiary",
         "lanes": "4",
         "layer": "-1",
-        "name": "Calle Capitán Piloto Aviador Carlos León",
         "oneway": "yes",
         "surface": "asphalt",
         "tunnel": "yes",
@@ -17000,10 +16986,8 @@
       "type": "Feature",
       "properties": {
         "@id": "way/846228542",
-        "alt_name": "Calle Sonora",
         "highway": "tertiary",
         "lanes": "4",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "turn:lanes": "left|through|through|through",
@@ -17298,11 +17282,9 @@
       "type": "Feature",
       "properties": {
         "@id": "way/856475487",
-        "alt_name": "Calle Sonora",
         "highway": "tertiary",
         "lanes": "3",
         "lit": "yes",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -17805,7 +17787,6 @@
         "@id": "way/850569393",
         "highway": "tertiary",
         "lanes": "3",
-        "name": "Calle Capitán Piloto Aviador Carlos León",
         "oneway": "yes",
         "surface": "asphalt",
         "turn:lanes": "through|through|through",
@@ -17891,10 +17872,8 @@
       "type": "Feature",
       "properties": {
         "@id": "way/846228543",
-        "alt_name": "Calle Sonora",
         "highway": "tertiary",
         "lanes": "4",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -21519,11 +21498,9 @@
       "type": "Feature",
       "properties": {
         "@id": "way/877820234",
-        "alt_name": "Calle Sonora",
         "covered": "yes",
         "highway": "unclassified",
         "lanes": "2",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -22267,12 +22244,10 @@
       "type": "Feature",
       "properties": {
         "@id": "way/421567682",
-        "alt_name": "Calle Sonora",
         "covered": "yes",
         "highway": "unclassified",
         "lanes": "2",
         "layer": "-1",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "tunnel": "yes",
@@ -22614,7 +22589,6 @@
         "@id": "way/846225836",
         "highway": "tertiary",
         "lanes": "1",
-        "name": "Calle Capitán Piloto Aviador Carlos León",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -25096,7 +25070,6 @@
         "@id": "way/38526023",
         "highway": "tertiary",
         "lanes": "3",
-        "name": "Calle Capitán Piloto Aviador Carlos León",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -26408,10 +26381,8 @@
       "type": "Feature",
       "properties": {
         "@id": "way/846228544",
-        "alt_name": "Calle Sonora",
         "highway": "tertiary",
         "lanes": "3",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -27550,7 +27521,6 @@
         "lanes": "4",
         "lit": "yes",
         "maxheight": "4.4",
-        "name": "Calle Sonora",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -30586,7 +30556,6 @@
         "@id": "way/95974399",
         "highway": "tertiary",
         "lanes": "3",
-        "name": "Calle Sonora",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -36240,11 +36209,9 @@
       "type": "Feature",
       "properties": {
         "@id": "way/1411605039",
-        "alt_name": "Calle Sonora",
         "covered": "yes",
         "highway": "unclassified",
         "lanes": "2",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -38710,10 +38677,8 @@
       "type": "Feature",
       "properties": {
         "@id": "way/846228545",
-        "alt_name": "Calle Sonora",
         "highway": "tertiary",
         "lanes": "3",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -40284,7 +40249,6 @@
         "@id": "way/421567694",
         "highway": "tertiary",
         "lanes": "3",
-        "name": "Calle Capitán Piloto Aviador Carlos León",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -41810,12 +41774,10 @@
       "type": "Feature",
       "properties": {
         "@id": "way/846225833",
-        "alt_name": "Calle Sonora",
         "covered": "yes",
         "highway": "tertiary",
         "lanes": "2",
         "layer": "-1",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "tunnel": "yes",
@@ -44741,11 +44703,9 @@
       "type": "Feature",
       "properties": {
         "@id": "way/856475488",
-        "alt_name": "Calle Sonora",
         "highway": "tertiary",
         "lanes": "3",
         "layer": "-1",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "tunnel": "building_passage",
@@ -48408,7 +48368,6 @@
         "@id": "way/951254107",
         "access": "private",
         "highway": "unclassified",
-        "name": "Avenida Texcoco",
         "oneway": "no",
         "surface": "asphalt",
         "peso": 2
@@ -50742,10 +50701,8 @@
       "type": "Feature",
       "properties": {
         "@id": "way/25400360",
-        "alt_name": "Calle Sonora",
         "highway": "tertiary",
         "lanes": "3",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -50855,11 +50812,9 @@
       "type": "Feature",
       "properties": {
         "@id": "way/1411605040",
-        "alt_name": "Calle Sonora",
         "covered": "yes",
         "highway": "unclassified",
         "lanes": "2",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -51898,7 +51853,6 @@
         "@id": "way/846225832",
         "highway": "tertiary",
         "lanes": "3",
-        "name": "Calle Capitán Piloto Aviador Carlos León",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -53099,10 +53053,8 @@
       "type": "Feature",
       "properties": {
         "@id": "way/846225831",
-        "alt_name": "Calle Sonora",
         "highway": "tertiary",
         "lanes": "2",
-        "name": "Aeropuerto Civil",
         "oneway": "yes",
         "surface": "asphalt",
         "peso": 2
@@ -53891,7 +53843,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -53917,7 +53868,6 @@
         "cycleway:both": "no",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -53984,7 +53934,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54009,7 +53958,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54086,7 +54034,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54137,7 +54084,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54159,7 +54105,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54180,7 +54125,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54211,7 +54155,6 @@
         "@id": "way/1411605011",
         "highway": "footway",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54233,7 +54176,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54270,7 +54212,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54319,7 +54260,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54368,7 +54308,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54406,7 +54345,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54430,7 +54368,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54472,7 +54409,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54502,7 +54438,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54533,7 +54468,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54557,7 +54491,6 @@
         "@id": "way/1309915287",
         "aeroway": "taxiway",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54595,7 +54528,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54624,7 +54556,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54730,7 +54661,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54830,7 +54760,6 @@
         "horse": "no",
         "motor_vehicle": "private",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54856,7 +54785,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54893,7 +54821,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -54921,7 +54848,6 @@
         "horse": "no",
         "motor_vehicle": "private",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -55011,7 +54937,6 @@
         "cycleway:both": "no",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -55045,7 +54970,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -55081,7 +55005,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -55123,7 +55046,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -55152,7 +55074,6 @@
         "horse": "no",
         "motor_vehicle": "private",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -55329,7 +55250,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -55368,7 +55288,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -55401,7 +55320,6 @@
         "sidewalk": "no",
         "surface": "asphalt",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -55727,7 +55645,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -55756,7 +55673,6 @@
         "horse": "no",
         "motor_vehicle": "private",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -55837,7 +55753,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -55874,7 +55789,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -55939,7 +55853,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -55977,7 +55890,6 @@
         "lit": "yes",
         "motor_vehicle": "private",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56015,7 +55927,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56043,7 +55954,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56089,7 +55999,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56133,7 +56042,6 @@
         "@id": "way/513196115",
         "aeroway": "taxiway",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56174,7 +56082,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56208,7 +56115,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56233,7 +56139,6 @@
         "highway": "service",
         "lit": "yes",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56258,7 +56163,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56303,7 +56207,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56349,7 +56252,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56378,7 +56280,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56400,7 +56301,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56421,7 +56321,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56442,7 +56341,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56466,7 +56364,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56524,7 +56421,6 @@
         "lit": "yes",
         "motor_vehicle": "private",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56649,7 +56545,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56678,7 +56573,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56725,7 +56619,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56747,7 +56640,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56771,7 +56663,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56805,7 +56696,6 @@
         "cycleway:both": "no",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56834,7 +56724,6 @@
         "horse": "no",
         "maxspeed": "60",
         "motor_vehicle": "private",
-        "name": "vialidad",
         "surface": "paved",
         "peso": 1,
         "velocidad": 20
@@ -56862,7 +56751,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56883,7 +56771,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56912,7 +56799,6 @@
         "lit": "yes",
         "motor_vehicle": "private",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -56965,7 +56851,6 @@
         "horse": "no",
         "maxspeed": "60",
         "motor_vehicle": "private",
-        "name": "vialidad",
         "surface": "paved",
         "peso": 1,
         "velocidad": 20
@@ -57033,7 +56918,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57058,7 +56942,6 @@
         "highway": "service",
         "lit": "yes",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57080,7 +56963,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57101,7 +56983,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57122,7 +57003,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57152,7 +57032,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57177,7 +57056,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57231,7 +57109,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57265,7 +57142,6 @@
         "highway": "service",
         "lit": "yes",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57299,7 +57175,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57323,7 +57198,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57365,7 +57239,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57394,7 +57267,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57444,7 +57316,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57482,7 +57353,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57512,7 +57382,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57534,7 +57403,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57564,7 +57432,6 @@
         "motor_vehicle": "private",
         "surface": "asphalt",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57627,7 +57494,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -57998,7 +57864,6 @@
         "motor_vehicle": "private",
         "surface": "concrete",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58036,7 +57901,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58090,7 +57954,6 @@
         "lit": "yes",
         "motor_vehicle": "private",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58152,7 +58015,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58177,7 +58039,6 @@
         "cycleway:both": "no",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58254,7 +58115,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58276,7 +58136,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58300,7 +58159,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58353,7 +58211,6 @@
         "horse": "no",
         "maxspeed": "60",
         "motor_vehicle": "private",
-        "name": "vialidad",
         "surface": "paved",
         "peso": 1,
         "velocidad": 20
@@ -58565,7 +58422,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58586,7 +58442,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58639,7 +58494,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58663,7 +58517,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58693,7 +58546,6 @@
         "lit": "yes",
         "motor_vehicle": "private",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58755,7 +58607,6 @@
         "highway": "service",
         "lit": "yes",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58780,7 +58631,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58802,7 +58652,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58832,7 +58681,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58857,7 +58705,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58890,7 +58737,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58928,7 +58774,6 @@
         "horse": "no",
         "motor_vehicle": "private",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -58969,7 +58814,6 @@
         "access": "private",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -59023,7 +58867,6 @@
         "cycleway:both": "no",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -59077,7 +58920,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -59103,7 +58945,6 @@
         "cycleway:both": "no",
         "highway": "service",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -59377,7 +59218,6 @@
         "highway": "service",
         "lit": "yes",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -59403,7 +59243,6 @@
       "type": "Feature",
       "properties": {
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -59433,7 +59272,6 @@
         "motor_vehicle": "private",
         "surface": "paved",
         "peso": 1,
-        "name": "vialidad",
         "velocidad": 20
       },
       "geometry": {
@@ -59464,7 +59302,6 @@
         "lit": "no",
         "maxspeed": "60",
         "motor_vehicle": "private",
-        "name": "vialidad",
         "parking:both": "no",
         "sidewalk": "no",
         "surface": "asphalt",
@@ -59534,7 +59371,6 @@
         "lit": "no",
         "maxspeed": "60",
         "motor_vehicle": "private",
-        "name": "vialidad",
         "parking:both": "no",
         "sidewalk": "no",
         "surface": "asphalt",
@@ -59600,7 +59436,6 @@
         "lit": "no",
         "maxspeed": "60",
         "motor_vehicle": "private",
-        "name": "vialidad",
         "parking:both": "no",
         "sidewalk": "no",
         "surface": "asphalt",
@@ -59706,7 +59541,6 @@
         "lit": "no",
         "maxspeed": "60",
         "motor_vehicle": "private",
-        "name": "vialidad",
         "parking:both": "no",
         "sidewalk": "no",
         "surface": "asphalt",
@@ -59876,7 +59710,6 @@
         "lit": "no",
         "maxspeed": "60",
         "motor_vehicle": "private",
-        "name": "vialidad",
         "parking:both": "no",
         "sidewalk": "no",
         "surface": "asphalt",
@@ -59989,6 +59822,44 @@
           [
             -99.083971,
             19.425346
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "05R/23L"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -99.0865296,
+            19.4266344
+          ],
+          [
+            -99.0532373,
+            19.4452912
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "05L/23R"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -99.0904009,
+            19.427628
+          ],
+          [
+            -99.0582292,
+            19.445704
           ]
         ]
       }
