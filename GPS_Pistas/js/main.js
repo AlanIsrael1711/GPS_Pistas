@@ -193,18 +193,18 @@ let trazandoRuta = false;
 
 window.map.on('click', function(e) {
     const panel = document.getElementById('panelDestino');
-    if (!panel.classList.contains('oculto')) {
-        panel.classList.add('oculto');
+    if (!panel.classList.contains('d-none')) {
+        panel.classList.add('d-none');
         if (marcadorTemp) {
             window.map.removeLayer(marcadorTemp);
             marcadorTemp = null;
         }
-        return; 
+        // return; 
     }
 
-    const { lat, lng } = e.latlng;
+    /*const { lat, lng } = e.latlng;
     nombreLugarTemporal = "Punto en el Mapa"; 
-    procesarSeleccionTemporal(lat, lng, nombreLugarTemporal);
+    procesarSeleccionTemporal(lat, lng, nombreLugarTemporal);*/
 });
 
 window.irHacia = function(lat, lng, nombreLugar) {
@@ -238,11 +238,11 @@ function procesarSeleccionTemporal(lat, lng, nombre) {
     }
 
     document.getElementById('bs-titulo').innerText = nombre;
-    document.getElementById('panelDestino').classList.remove('oculto');
+    document.getElementById('panelDestino').classList.remove('d-none');
 }
 
 window.cerrarPanelDestino = function() {
-    document.getElementById('panelDestino').classList.add('oculto');
+    document.getElementById('panelDestino').classList.add('d-none');
     if (marcadorTemp) {
         window.map.removeLayer(marcadorTemp);
         marcadorTemp = null;
@@ -252,7 +252,7 @@ window.cerrarPanelDestino = function() {
 window.confirmarNuevoDestino = function() {
     if (!marcadorTemp) return;
     
-    document.getElementById('panelDestino').classList.add('oculto');
+    document.getElementById('panelDestino').classList.add('d-none');
 
     const nuevaCoordenada = marcadorTemp.getLatLng();
     const nombreFinal = nombreLugarTemporal; 
@@ -730,32 +730,89 @@ function generarInstrucciones(pathCoords) {
 }
 
 // -------------------------------------------------------
+// [CORRECCIÓN CRÍTICA] Función blindada para cancelar la ruta activa
+// -------------------------------------------------------
+window.cancelarRuta = function(e) {
+    // 1. Prevenir cualquier comportamiento automático del navegador al hacer clic
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    // 2. Limpieza de capas con prevención de errores (evita que un fallo detenga la ejecución)
+    try {
+        if (trayectoria && window.map) {
+            window.map.removeLayer(trayectoria);
+            trayectoria = null;
+        }
+        if (marcador && window.map) {
+            window.map.removeLayer(marcador);
+            marcador = null;
+        }
+    } catch (error) {
+        console.warn("Advertencia al limpiar capas del mapa:", error);
+    }
+
+    trazandoRuta = false;
+    
+    // 3. Orden forzada para apagar el panel
+    ocultarPanelInstrucciones();
+    
+    // 4. Regresamos la barra del buscador a la pantalla
+    const searchBox = document.querySelector('.search-container');
+    if (searchBox) searchBox.classList.remove('d-none');
+};
+
+// -------------------------------------------------------
 // 9.3 Panel de instrucciones (turn-by-turn en vivo)
 // -------------------------------------------------------
 function renderizarPanelInstrucciones() {
     const panel = document.getElementById('panelNavegacion');
     if (!panel || pasosRuta.length === 0) return;
 
+    const searchBox = document.querySelector('.search-container');
+    if (searchBox) searchBox.classList.add('d-none');
+
     const paso = pasosRuta[pasoActualIndex];
     const siguiente = pasosRuta[pasoActualIndex + 1];
-    const ubicacionActual = window._ubicacionActualTexto; // [NUEVO]
 
+    // Se le añade el tipo 'button' explícito y pasamos el evento (event) a cancelarRuta
     panel.innerHTML = `
-        <div class="d-flex align-items-center">
-            <i class="bi ${paso.icono} fs-2 me-2 text-primary"></i>
-            <div>
-                <div class="fw-bold">${paso.texto}</div>
-                <div class="text-muted small">${Math.round(paso.distancia)} m</div>
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+                <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm" style="width: 52px; height: 52px; flex-shrink: 0;">
+                    <i class="bi ${paso.icono} fs-2 text-primary"></i>
+                </div>
+                <div>
+                    <div class="fw-bold text-dark" style="font-size: 1.05rem; line-height: 1.2;">${paso.texto}</div>
+                    <div class="fw-bold text-primary mt-1 fs-6">${Math.round(paso.distancia)} metros</div>
+                </div>
             </div>
+            
+            <button type="button" class="btn btn-light rounded-circle shadow-sm border ms-2" onclick="window.cancelarRuta(event)" style="width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;" aria-label="Cancelar Ruta">
+                <i class="bi bi-x-lg text-danger fw-bold"></i>
+            </button>
         </div>
-        ${siguiente ? `<div class="text-muted small mt-1">Luego: ${siguiente.texto}</div>` : ''}
+        ${siguiente ? `<div class="text-muted small mt-3 pt-2 border-top"><i class="bi bi-arrow-return-right me-1"></i> Luego: ${siguiente.texto}</div>` : ''}
     `;
-    panel.classList.remove('oculto');
+    
+    // Le quitamos las restricciones visuales para que reaparezca
+    panel.classList.remove('d-none');
+    panel.style.display = ''; 
 }
 
+// -------------------------------------------------------
+// Función auxiliar que apaga y destruye el contenido del panel
+// -------------------------------------------------------
 function ocultarPanelInstrucciones() {
     const panel = document.getElementById('panelNavegacion');
-    if (panel) panel.classList.add('oculto');
+    if (panel) {
+        panel.classList.add('d-none');
+        // Medida extrema: Forzamos la desaparición con CSS en línea por si Bootstrap falla
+        panel.style.setProperty('display', 'none', 'important');
+        // Vaciamos el HTML para que físicamente no haya nada que mostrar
+        panel.innerHTML = '';
+    }
     pasosRuta = [];
     pasoActualIndex = 0;
 }
