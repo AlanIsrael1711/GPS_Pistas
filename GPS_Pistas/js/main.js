@@ -31,6 +31,20 @@ let grafoRutas = new Map();
 let nodosCaminos = null; 
 
 // -------------------------------------------------------
+// [NUEVO] Función para mover los botones flotantes
+// -------------------------------------------------------
+window.moverBotonesFlotantes = function(subir) {
+    const contenedorBotones = document.querySelector('.fab-container');
+    if (contenedorBotones) {
+        if (subir) {
+            contenedorBotones.classList.add('elevado');
+        } else {
+            contenedorBotones.classList.remove('elevado');
+        }
+    }
+};
+
+// -------------------------------------------------------
 // Ponderación por afluencia (propiedad "peso" del geojson)
 // -------------------------------------------------------
 // peso = 1 -> tramo "principal" (presente tanto en red_sin_pista_lateral
@@ -199,12 +213,8 @@ window.map.on('click', function(e) {
             window.map.removeLayer(marcadorTemp);
             marcadorTemp = null;
         }
-        // return; 
+        window.moverBotonesFlotantes(false);
     }
-
-    /*const { lat, lng } = e.latlng;
-    nombreLugarTemporal = "Punto en el Mapa"; 
-    procesarSeleccionTemporal(lat, lng, nombreLugarTemporal);*/
 });
 
 window.irHacia = function(lat, lng, nombreLugar) {
@@ -239,6 +249,7 @@ function procesarSeleccionTemporal(lat, lng, nombre) {
 
     document.getElementById('bs-titulo').innerText = nombre;
     document.getElementById('panelDestino').classList.remove('d-none');
+    window.moverBotonesFlotantes(true);
 }
 
 window.cerrarPanelDestino = function() {
@@ -247,12 +258,15 @@ window.cerrarPanelDestino = function() {
         window.map.removeLayer(marcadorTemp);
         marcadorTemp = null;
     }
+    window.moverBotonesFlotantes(false);
 };
 
 window.confirmarNuevoDestino = function() {
     if (!marcadorTemp) return;
     
     document.getElementById('panelDestino').classList.add('d-none');
+
+    window.moverBotonesFlotantes(false);
 
     const nuevaCoordenada = marcadorTemp.getLatLng();
     const nombreFinal = nombreLugarTemporal; 
@@ -799,6 +813,7 @@ function renderizarPanelInstrucciones() {
     // Le quitamos las restricciones visuales para que reaparezca
     panel.classList.remove('d-none');
     panel.style.display = ''; 
+    window.moverBotonesFlotantes(true);
 }
 
 // -------------------------------------------------------
@@ -812,6 +827,8 @@ function ocultarPanelInstrucciones() {
         panel.style.setProperty('display', 'none', 'important');
         // Vaciamos el HTML para que físicamente no haya nada que mostrar
         panel.innerHTML = '';
+
+        window.moverBotonesFlotantes(false);
     }
     pasosRuta = [];
     pasoActualIndex = 0;
