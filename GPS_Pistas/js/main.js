@@ -31,22 +31,35 @@ let grafoRutas = new Map();
 let nodosCaminos = null; 
 
 // -------------------------------------------------------
-// [MODIFICADO] Función dinámica para mover botones flotantes
+// [CORREGIDO] Función dinámica para mover botones flotantes (Horizontal/Vertical)
 // -------------------------------------------------------
 window.moverBotonesFlotantes = function(subir, idPanel = null) {
     const contenedorBotones = document.querySelector('.fab-container');
     if (!contenedorBotones) return;
 
     if (subir && idPanel) {
-        const panel = document.getElementById(idPanel);
-        if (panel) {
-            // Calculamos la altura real del panel en pantalla
-            const alturaPanel = panel.offsetHeight;
-            // Sumamos 20px de margen visual extra para que los botones no se peguen al panel
-            contenedorBotones.style.transform = `translateY(-${alturaPanel + 20}px)`;
-        }
+        // Un micro-retraso de 20ms asegura que el navegador ya imprimió 
+        // el texto del HTML interno y la altura medida sea 100% real.
+        setTimeout(() => {
+            const panel = document.getElementById(idPanel);
+            if (panel) {
+                const alturaPanel = panel.offsetHeight;
+                
+                if (idPanel === 'panelNavegacion') {
+                    // Modo Navegación: Activa la barra horizontal
+                    contenedorBotones.classList.add('modo-horizontal');
+                    // Sumamos 35px extra para compensar el margen mb-4 de Bootstrap y dar un respiro visual
+                    contenedorBotones.style.transform = `translateY(-${alturaPanel + 35}px)`;
+                } else {
+                    // Panel de Destino: Mantiene la columna vertical normal
+                    contenedorBotones.classList.remove('modo-horizontal');
+                    contenedorBotones.style.transform = `translateY(-${alturaPanel + 35}px)`;
+                }
+            }
+        }, 20);
     } else {
-        // Al cerrar, limpiamos la transformación para que los botones bajen a su sitio original
+        // Al cerrar, limpiamos la clase y la transformación
+        contenedorBotones.classList.remove('modo-horizontal');
         contenedorBotones.style.transform = '';
     }
 };
