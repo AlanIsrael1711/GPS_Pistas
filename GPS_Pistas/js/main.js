@@ -38,31 +38,31 @@ window.moverBotonesFlotantes = function(subir, idPanel = null) {
     if (!contenedorBotones) return;
 
     if (subir && idPanel) {
-        // El doble requestAnimationFrame garantiza matemáticamente que el HTML 
-        // ya se dibujó al 100% en la pantalla antes de medirlo.
-        requestAnimationFrame(() => {
+        const panel = document.getElementById(idPanel);
+        if (panel) {
+            // Forzamos al navegador a recalcular el tamaño físico de la pantalla de inmediato
+            void panel.offsetHeight; 
+
             requestAnimationFrame(() => {
-                const panel = document.getElementById(idPanel);
-                if (panel) {
-                    const alturaPanel = panel.offsetHeight;
-                    
-                    if (idPanel === 'panelNavegacion') {
-                        // MODO NAVEGACIÓN: Acuesta los botones y los sube por encima del panel
-                        contenedorBotones.classList.add('modo-horizontal');
-                        // Se suma la altura exacta + 35px para librar el margen inferior de la pantalla
-                        contenedorBotones.style.transform = `translateY(-${alturaPanel + 35}px)`;
-                    } else {
-                        // MODO DESTINO: Mantiene la columna vertical y los sube
-                        contenedorBotones.classList.remove('modo-horizontal');
-                        contenedorBotones.style.transform = `translateY(-${alturaPanel + 35}px)`;
-                    }
+                // Ahora sí, la altura es 100% precisa
+                const alturaReal = panel.offsetHeight;
+                
+                if (idPanel === 'panelNavegacion') {
+                    // MODO NAVEGACIÓN: Acuesta los botones (horizontal)
+                    contenedorBotones.classList.add('modo-horizontal');
+                    // Sube la altura exacta del panel + 25px para que se sienten justo encima
+                    contenedorBotones.style.transform = `translateY(-${alturaReal + 25}px)`;
+                } else {
+                    // MODO DESTINO: Mantiene columna vertical
+                    contenedorBotones.classList.remove('modo-horizontal');
+                    contenedorBotones.style.transform = `translateY(-${alturaReal + 25}px)`;
                 }
             });
-        });
+        }
     } else {
-        // Al cerrar o cancelar, les quita lo horizontal y los devuelve al fondo
+        // MODO CERRAR/CANCELAR: Limpia las clases y devuelve los botones abajo
         contenedorBotones.classList.remove('modo-horizontal');
-        contenedorBotones.style.transform = 'translateY(0)';
+        contenedorBotones.style.transform = '';
     }
 };
 
@@ -812,7 +812,6 @@ function renderizarPanelInstrucciones() {
     const paso = pasosRuta[pasoActualIndex];
     const siguiente = pasosRuta[pasoActualIndex + 1];
 
-    // Se le añade el tipo 'button' explícito y pasamos el evento (event) a cancelarRuta
     panel.innerHTML = `
         <div class="d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center">
@@ -832,10 +831,11 @@ function renderizarPanelInstrucciones() {
         ${siguiente ? `<div class="text-muted small mt-3 pt-2 border-top"><i class="bi bi-arrow-return-right me-1"></i> Luego: ${siguiente.texto}</div>` : ''}
     `;
     
-    // Le quitamos las restricciones visuales para que reaparezca
     panel.classList.remove('d-none');
     panel.style.display = ''; 
-    window.moverBotonesFlotantes(true, 'panelDestino');
+    
+    // [CORRECCIÓN CRÍTICA] Se envía el ID correcto: 'panelNavegacion'
+    window.moverBotonesFlotantes(true, 'panelNavegacion');
 }
 
 // -------------------------------------------------------
