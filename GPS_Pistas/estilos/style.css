@@ -431,17 +431,17 @@
     padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 
-/* Asegúrate de que tu contenedor tenga esta transición suave */
+/* Ajuste maestro para los botones flotantes */
 .fab-container {
     position: fixed;
-    bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+    bottom: 30px;
     right: 20px;
-    z-index: 1040;
+    z-index: 1060 !important; /* CRÍTICO: Debe ser mayor al panel (1050) para no quedar ocultos */
     display: flex;
     flex-direction: column;
     gap: 15px;
-    /* [NUEVO] Transición fluida para que no salte de golpe */
-    transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+    /* Transición fluida al subir y bajar */
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); 
 }
 
 #letreroLimiteVelocidad {
@@ -602,8 +602,7 @@
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #ccc; border-radius: 4px; }
 
-/* Agrega esto al final de tu style.css */
+/* Clase inyectada por JS para acostarlos horizontalmente sobre el panel */
 .fab-container.modo-horizontal {
-    flex-direction: row-reverse; /* Apila los botones de derecha a izquierda */
-    gap: 12px; /* Los junta un poco más para que luzcan como una barra de herramientas */
+    flex-direction: row-reverse; /* Se apilan de derecha a izquierda */
 }
