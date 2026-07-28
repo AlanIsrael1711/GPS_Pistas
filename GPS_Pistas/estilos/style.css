@@ -488,12 +488,13 @@
 
 /* Cuerpo del panel que se expande hacia la derecha */
 .cuerpo-simbologia {
-    pointer-events: auto; /* Aquí los clics SI funcionan */
+    pointer-events: auto;
     background-color: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(5px);
     height: auto;
-    max-height: 60vh; /* Ocupa máximo un 60% de la pantalla */
-    width: 0; /* Colapsado por defecto */
+    /* Reducimos drásticamente al tamaño de una sola sección */
+    max-height: 160px; 
+    width: 0; 
     padding: 0;
     overflow-y: auto;
     overflow-x: hidden;
@@ -542,15 +543,16 @@
 }
 
 /* ------------------------------------------- */
-/* Estilos compactos para el texto interno     */
+/* Ajuste extra de márgenes para que quepa más */
+/* información visual en menos espacio         */
 /* ------------------------------------------- */
 .simbologia-categoria {
     font-size: 0.65rem;
     font-weight: 800;
     color: #a1aab2;
     text-transform: uppercase;
-    margin-bottom: 8px;
-    margin-top: 12px;
+    margin-bottom: 6px; /* Ajustado */
+    margin-top: 10px;   /* Ajustado */
     border-bottom: 1px solid #f1f1f1;
     padding-bottom: 4px;
 }
@@ -559,7 +561,7 @@
 .simbologia-item-compacto {
     display: flex;
     align-items: center;
-    margin-bottom: 6px;
+    margin-bottom: 4px; /* Más compacto entre líneas */
 }
 .simbologia-linea-compacta {
     width: 20px;
