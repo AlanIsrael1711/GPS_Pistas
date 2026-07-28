@@ -31,16 +31,23 @@ let grafoRutas = new Map();
 let nodosCaminos = null; 
 
 // -------------------------------------------------------
-// [NUEVO] Función para mover los botones flotantes
+// [MODIFICADO] Función dinámica para mover botones flotantes
 // -------------------------------------------------------
-window.moverBotonesFlotantes = function(subir) {
+window.moverBotonesFlotantes = function(subir, idPanel = null) {
     const contenedorBotones = document.querySelector('.fab-container');
-    if (contenedorBotones) {
-        if (subir) {
-            contenedorBotones.classList.add('elevado');
-        } else {
-            contenedorBotones.classList.remove('elevado');
+    if (!contenedorBotones) return;
+
+    if (subir && idPanel) {
+        const panel = document.getElementById(idPanel);
+        if (panel) {
+            // Calculamos la altura real del panel en pantalla
+            const alturaPanel = panel.offsetHeight;
+            // Sumamos 20px de margen visual extra para que los botones no se peguen al panel
+            contenedorBotones.style.transform = `translateY(-${alturaPanel + 20}px)`;
         }
+    } else {
+        // Al cerrar, limpiamos la transformación para que los botones bajen a su sitio original
+        contenedorBotones.style.transform = '';
     }
 };
 
@@ -249,7 +256,7 @@ function procesarSeleccionTemporal(lat, lng, nombre) {
 
     document.getElementById('bs-titulo').innerText = nombre;
     document.getElementById('panelDestino').classList.remove('d-none');
-    window.moverBotonesFlotantes(true);
+    window.moverBotonesFlotantes(true, 'panelDestino');
 }
 
 window.cerrarPanelDestino = function() {
@@ -813,7 +820,7 @@ function renderizarPanelInstrucciones() {
     // Le quitamos las restricciones visuales para que reaparezca
     panel.classList.remove('d-none');
     panel.style.display = ''; 
-    window.moverBotonesFlotantes(true);
+    window.moverBotonesFlotantes(true, 'panelDestino');
 }
 
 // -------------------------------------------------------
