@@ -444,11 +444,6 @@
     transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-/* [NUEVO] Esta clase se inyectará desde JavaScript cuando aparezca un panel */
-.fab-container.elevado {
-    transform: translateY(-135px); /* Sube los botones lo suficiente para librar las tarjetas */
-}
-
 #letreroLimiteVelocidad {
     position: fixed;
     top: 90px;
