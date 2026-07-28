@@ -431,10 +431,22 @@
     padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 
+/* Asegúrate de que tu contenedor tenga esta transición suave */
 .fab-container {
-    /* Mismo ajuste para que los botones flotantes no queden pegados
-       al borde real de la pantalla en celulares con gestos */
+    position: fixed;
     bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+    right: 20px;
+    z-index: 1040;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    /* [NUEVO] Transición fluida para que no salte de golpe */
+    transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* [NUEVO] Esta clase se inyectará desde JavaScript cuando aparezca un panel */
+.fab-container.elevado {
+    transform: translateY(-135px); /* Sube los botones lo suficiente para librar las tarjetas */
 }
 
 #letreroLimiteVelocidad {
