@@ -31,36 +31,38 @@ let grafoRutas = new Map();
 let nodosCaminos = null; 
 
 // -------------------------------------------------------
-// [CORREGIDO] Función dinámica para mover botones flotantes (Horizontal/Vertical)
+// [CORREGIDO] Función dinámica definitiva para botones flotantes
 // -------------------------------------------------------
 window.moverBotonesFlotantes = function(subir, idPanel = null) {
     const contenedorBotones = document.querySelector('.fab-container');
     if (!contenedorBotones) return;
 
     if (subir && idPanel) {
-        // Un micro-retraso de 20ms asegura que el navegador ya imprimió 
-        // el texto del HTML interno y la altura medida sea 100% real.
-        setTimeout(() => {
-            const panel = document.getElementById(idPanel);
-            if (panel) {
-                const alturaPanel = panel.offsetHeight;
-                
-                if (idPanel === 'panelNavegacion') {
-                    // Modo Navegación: Activa la barra horizontal
-                    contenedorBotones.classList.add('modo-horizontal');
-                    // Sumamos 35px extra para compensar el margen mb-4 de Bootstrap y dar un respiro visual
-                    contenedorBotones.style.transform = `translateY(-${alturaPanel + 35}px)`;
-                } else {
-                    // Panel de Destino: Mantiene la columna vertical normal
-                    contenedorBotones.classList.remove('modo-horizontal');
-                    contenedorBotones.style.transform = `translateY(-${alturaPanel + 35}px)`;
+        // El doble requestAnimationFrame garantiza matemáticamente que el HTML 
+        // ya se dibujó al 100% en la pantalla antes de medirlo.
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                const panel = document.getElementById(idPanel);
+                if (panel) {
+                    const alturaPanel = panel.offsetHeight;
+                    
+                    if (idPanel === 'panelNavegacion') {
+                        // MODO NAVEGACIÓN: Acuesta los botones y los sube por encima del panel
+                        contenedorBotones.classList.add('modo-horizontal');
+                        // Se suma la altura exacta + 35px para librar el margen inferior de la pantalla
+                        contenedorBotones.style.transform = `translateY(-${alturaPanel + 35}px)`;
+                    } else {
+                        // MODO DESTINO: Mantiene la columna vertical y los sube
+                        contenedorBotones.classList.remove('modo-horizontal');
+                        contenedorBotones.style.transform = `translateY(-${alturaPanel + 35}px)`;
+                    }
                 }
-            }
-        }, 20);
+            });
+        });
     } else {
-        // Al cerrar, limpiamos la clase y la transformación
+        // Al cerrar o cancelar, les quita lo horizontal y los devuelve al fondo
         contenedorBotones.classList.remove('modo-horizontal');
-        contenedorBotones.style.transform = '';
+        contenedorBotones.style.transform = 'translateY(0)';
     }
 };
 
