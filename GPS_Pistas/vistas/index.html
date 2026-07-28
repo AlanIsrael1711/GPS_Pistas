@@ -69,7 +69,8 @@
         <ul id="resultadosBusqueda" class="list-group shadow-lg d-none position-absolute w-100 mt-2" style="max-height: 250px; overflow-y: auto; border-radius: 15px;"></ul>
     </div>
 
-    <div id="panelNavegacion" class="oculto position-fixed bottom-0 start-0 end-0 bg-white shadow p-3 rounded-top" style="z-index: 1000;"></div>
+   <!-- Panel Flotante: Indicaciones de Ruta (Navegación) -->
+   <div id="panelNavegacion" class="d-none position-fixed bottom-0 start-50 translate-middle-x mb-4 bg-white shadow-lg p-3 rounded-4 border" style="z-index: 1050; width: 92%; max-width: 450px;"></div>
 
     <div id="letreroLimiteVelocidad" class="oculto" aria-label="Límite de velocidad">
         <span class="limite-numero">40</span>
@@ -226,13 +227,23 @@
         </div>
     </div>
 
-    <div id="panelDestino" class="bottom-sheet oculto">
-        <div class="bs-content position-relative">
-            <button type="button" class="btn-close position-absolute top-0 end-0" aria-label="Cerrar" onclick="window.cerrarPanelDestino()"></button>
-            <h5 id="bs-titulo" class="text-primary mb-1 fw-bold pe-4">Nombre del Lugar</h5>
-            <p class="text-muted small mb-3">Toca el botón para confirmar y trazar la ruta</p>
-            <button class="btn btn-primary w-100 fw-bold py-2" onclick="window.confirmarNuevoDestino()">
-                <i class="bi bi-geo-alt-fill me-2"></i> ✔ Iniciar Ruta
+    <!-- Panel Flotante: Confirmación de Destino -->
+    <div id="panelDestino" class="d-none position-fixed bottom-0 start-50 translate-middle-x mb-4 bg-white shadow-lg p-3 rounded-4 border" style="z-index: 1050; width: 92%; max-width: 450px;">
+        <div class="position-relative">
+            <button type="button" class="btn-close position-absolute top-0 end-0 mt-1" aria-label="Cerrar" onclick="window.cerrarPanelDestino()"></button>
+            
+            <div class="d-flex align-items-center mb-3 pe-4">
+                <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm" style="width: 52px; height: 52px; flex-shrink: 0;">
+                    <i class="bi bi-geo-alt-fill fs-2 text-primary"></i>
+                </div>
+                <div>
+                    <h5 id="bs-titulo" class="text-dark mb-0 fw-bold" style="line-height: 1.2;">Nombre del Lugar</h5>
+                    <div class="text-muted small mt-1">Confirmar para trazar ruta</div>
+                </div>
+            </div>
+            
+            <button class="btn btn-primary w-100 fw-bold py-2 rounded-3 shadow-sm" onclick="window.confirmarNuevoDestino()">
+                Iniciar Ruta
             </button>
         </div>
     </div>
