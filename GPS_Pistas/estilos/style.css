@@ -601,3 +601,9 @@
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #ccc; border-radius: 4px; }
+
+/* Agrega esto al final de tu style.css */
+.fab-container.modo-horizontal {
+    flex-direction: row-reverse; /* Apila los botones de derecha a izquierda */
+    gap: 12px; /* Los junta un poco más para que luzcan como una barra de herramientas */
+}
