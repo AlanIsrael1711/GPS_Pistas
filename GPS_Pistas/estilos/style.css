@@ -431,7 +431,9 @@
     padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 
-/* Ajuste maestro para los botones flotantes */
+/* ======================================================= */
+/* 1. BOTONES FLOTANTES (DERECHA)                          */
+/* ======================================================= */
 .fab-container {
     position: fixed;
     bottom: 30px;
@@ -441,7 +443,17 @@
     flex-direction: column;
     gap: 15px;
     transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+} /* <--- ¡ESTA ES LA LLAVE QUE FALTABA! */
 
+/* Clase inyectada por JS para acostarlos horizontalmente sobre el panel */
+.fab-container.modo-horizontal {
+    flex-direction: row-reverse !important; /* !important para anular Bootstrap */
+    gap: 12px !important;
+}
+
+/* ======================================================= */
+/* LETRERO DE VELOCIDAD                                    */
+/* ======================================================= */
 #letreroLimiteVelocidad {
     position: fixed;
     top: 90px;
@@ -479,25 +491,26 @@
     color: #6b7280;
     margin-top: -2px;
 }
-/* Contenedor padre invisible que no interrumpe el mapa */
+
+/* ======================================================= */
+/* 2. PANEL DE SIMBOLOGÍA FLOTANTE (IZQUIERDA)             */
+/* ======================================================= */
 .panel-simbologia-wrapper {
     position: fixed;
-    top: 50%; /* Centrado verticalmente */
+    top: 50%;
     left: 0;
     transform: translateY(-50%);
-    z-index: 1020;
+    z-index: 1040 !important; /* Aseguramos que siempre se vea */
     display: flex;
     align-items: flex-start;
-    pointer-events: none; /* Clics atraviesan al mapa */
+    pointer-events: none; 
 }
 
-/* Cuerpo del panel que se expande hacia la derecha */
 .cuerpo-simbologia {
     pointer-events: auto;
     background-color: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(5px);
     height: auto;
-    /* Reducimos drásticamente al tamaño de una sola sección */
     max-height: 160px; 
     width: 0; 
     padding: 0;
@@ -507,24 +520,21 @@
     transition: width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), padding 0.3s ease;
 }
 
-/* Fija el ancho interno para que el texto no baile durante la animación */
 .simbologia-inner {
     width: 210px; 
 }
 
-/* Estado ABIERTO del contenedor */
 .panel-simbologia-wrapper.abierto .cuerpo-simbologia {
-    width: 220px; /* Tamaño final */
+    width: 220px; 
     padding: 12px;
     box-shadow: 4px 4px 15px rgba(0,0,0,0.1);
     border: 1px solid rgba(0,0,0,0.08);
     border-left: none;
 }
 
-/* La pestaña que el usuario toca */
 .pestana-simbologia {
     pointer-events: auto;
-    margin-top: 15px; /* Ligeramente más abajo del inicio del panel */
+    margin-top: 15px; 
     padding: 12px 6px 12px 10px;
     border: 1px solid rgba(0,0,0,0.08);
     border-left: none;
@@ -532,6 +542,7 @@
     cursor: pointer;
     display: flex;
     align-items: center;
+    background-color: white; /* Restablecemos el fondo blanco */
     transition: background-color 0.2s ease;
 }
 
@@ -539,41 +550,40 @@
     background-color: #f8f9fa !important;
 }
 
-/* Animación de la flechita de la pestaña */
 .flecha-pestaña {
     transition: transform 0.3s ease;
 }
+
 .panel-simbologia-wrapper.abierto .flecha-pestaña {
     transform: rotate(180deg);
 }
 
-/* ------------------------------------------- */
-/* Ajuste extra de márgenes para que quepa más */
-/* información visual en menos espacio         */
-/* ------------------------------------------- */
 .simbologia-categoria {
     font-size: 0.65rem;
     font-weight: 800;
     color: #a1aab2;
     text-transform: uppercase;
-    margin-bottom: 6px; /* Ajustado */
-    margin-top: 10px;   /* Ajustado */
+    margin-bottom: 6px; 
+    margin-top: 10px; 
     border-bottom: 1px solid #f1f1f1;
     padding-bottom: 4px;
 }
+
 .simbologia-categoria:first-child { margin-top: 0; }
 
 .simbologia-item-compacto {
     display: flex;
     align-items: center;
-    margin-bottom: 4px; /* Más compacto entre líneas */
+    margin-bottom: 4px; 
 }
+
 .simbologia-linea-compacta {
     width: 20px;
     height: 4px;
     border-radius: 2px;
     flex-shrink: 0;
 }
+
 .simbologia-caja-compacta {
     width: 14px;
     height: 14px;
@@ -581,6 +591,7 @@
     flex-shrink: 0;
     border: 2px solid transparent;
 }
+
 .simbologia-texto-compacto {
     margin-left: 10px;
     font-size: 0.72rem;
@@ -588,6 +599,7 @@
     color: #495057;
     line-height: 1.1;
 }
+
 .simbologia-velocidad-compacta {
     display: block;
     font-size: 0.6rem;
@@ -595,13 +607,6 @@
     font-weight: normal;
 }
 
-/* Barra de scroll personalizada fina */
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #ccc; border-radius: 4px; }
-
-/* Clase inyectada por JS para acostarlos horizontalmente sobre el panel */
-.fab-container.modo-horizontal {
-    flex-direction: row-reverse; /* Se acuestan de derecha a izquierda */
-    gap: 12px;
-}
