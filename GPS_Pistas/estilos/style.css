@@ -117,6 +117,16 @@
    SOBRESCRITURA DE BOOTSTRAP (OFFCANVAS Y FORMULARIOS)
    ========================================================================== */
 /* Personalizar los switches (botones de encendido/apagado) del menú de filtros */
+
+/* [NUEVO] Asegurar que el panel de filtros y su sombra cubran absolutamente todo */
+.offcanvas-backdrop {
+    z-index: 1065 !important;
+}
+
+.offcanvas {
+    z-index: 1070 !important;
+}
+
 .form-check-input:checked {
     background-color: var(--primary-color);
     border-color: var(--primary-color);
