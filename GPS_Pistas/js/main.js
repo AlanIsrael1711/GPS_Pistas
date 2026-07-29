@@ -50,12 +50,12 @@ window.moverBotonesFlotantes = function(subir, idPanel = null) {
                 if (idPanel === 'panelNavegacion') {
                     // MODO NAVEGACIÓN: Acuesta los botones (horizontal)
                     contenedorBotones.classList.add('modo-horizontal');
-                    // Sube la altura exacta del panel + 25px para que se sienten justo encima
-                    contenedorBotones.style.transform = `translateY(-${alturaReal + 25}px)`;
+                    // Reducimos el extra a + 5 porque los botones ya tienen 30px de base en el CSS
+                    contenedorBotones.style.transform = `translateY(-${alturaReal + 5}px)`;
                 } else {
                     // MODO DESTINO: Mantiene columna vertical
                     contenedorBotones.classList.remove('modo-horizontal');
-                    contenedorBotones.style.transform = `translateY(-${alturaReal + 25}px)`;
+                    contenedorBotones.style.transform = `translateY(-${alturaReal + 5}px)`;
                 }
             });
         }
