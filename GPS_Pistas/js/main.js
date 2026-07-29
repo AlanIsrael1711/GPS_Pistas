@@ -201,7 +201,7 @@ socket.on('dibujar-ubicacion', (data) => {
     }
 
     if (primerAjuste) {
-        window.map.flyTo([lat, lng], 16, { animate: true, duration: 2 });
+        window.map.flyTo([lat, lng], 16, { animate: true, duration: 1 });
         primerAjuste = false;
         siguiendoUsuario = true;
     }

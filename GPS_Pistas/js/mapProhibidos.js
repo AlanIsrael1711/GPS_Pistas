@@ -186,14 +186,27 @@ Promise.all([
  
     if (dataProhibidas) {
         L.geoJSON(dataProhibidas, {
-            style: { color: "#28a745", weight: 1, fillColor: "#8d8b55", fillOpacity: 0.5 },
+            // [MODIFICADO] 1. Cambiamos el estilo fijo por una función condicional
+            style: function(feature) {
+                let opciones = { color: "#28a745", weight: 1, fillColor: "#8d8b55", fillOpacity: 0.5 };
+                
+                const props = feature.properties || {};
+                const nombre = props.nombre || props.name || props.Name || props.NAME || '';
+                
+                // Si el polígono se llama "Área Verde" o no tiene nombre asignado, apagamos su interactividad
+                if (!nombre || nombre.toLowerCase().includes('verde')) {
+                    opciones.interactive = false; // El clic lo atravesará hacia el mapa
+                }
+                
+                return opciones;
+            },
             onEachFeature: function(feature, layer) {
                 poligonosProhibidos.push(preprocesarPoligono(feature));
 
-                // [CORRECCIÓN] Buscando todas las variantes posibles de nombre en GeoJSON
+                // Buscando todas las variantes posibles de nombre en GeoJSON
                 const props = feature.properties;
                 const nombreLugar = props.nombre || props.name || props.Name || props.NAME || '';
- 
+
                 if (nombreLugar) {
                     window.directorioLugares.push({
                         nombre: nombreLugar,
@@ -202,13 +215,19 @@ Promise.all([
                     });
                     crearEtiquetaEdificio(nombreLugar, layer, capaParaZonas);
                 }
- 
+
+                // [MODIFICADO] 2. Escudo protector: Si es área verde, cancelamos la asignación del clic
+                if (!nombreLugar || nombreLugar.toLowerCase().includes('verde')) {
+                    return; // Terminamos aquí, el polígono se dibuja pero no hará nada al tocarlo
+                }
+
+                // Este evento de clic ahora SOLO se le aplicará a los lugares prohibidos que SÍ tienen nombre
                 layer.on('click', function(e) {
                     L.DomEvent.stopPropagation(e); 
                     const centro = layer.getBounds().getCenter();
                     window.zonaPermitidaTemporal = feature;
                     if (window.irHacia) {
-                        window.irHacia(centro.lat, centro.lng, nombreLugar || 'Área verde');
+                        window.irHacia(centro.lat, centro.lng, nombreLugar);
                     }
                 });
             }
