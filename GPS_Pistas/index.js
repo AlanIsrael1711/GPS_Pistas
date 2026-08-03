@@ -24,7 +24,7 @@ app.use('/', rutas);
 activarSockets(io); // <--- NUEVO
 
 // Encendido del servidor
-const PUERTO = 3000;
+const PUERTO = 3002;
 server.listen(PUERTO, () => {
     console.log(`Servidor corriendo en: http://localhost:${PUERTO}`);
 });
