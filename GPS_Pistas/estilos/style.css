@@ -10,6 +10,93 @@
     --nav-height: 56px;
 }
 
+/* =======================================================
+   Aeronaves en vivo: marcador discreto + información al tocar
+   ======================================================= */
+.marcador-aeronave {
+    background: transparent;
+    border: 0;
+}
+
+.aeronave-marcador-contenido {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.aeronave-icono {
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
+    transform-origin: center;
+    transition: transform 120ms linear, filter 180ms ease;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.aeronave-estado-normal {
+    filter: brightness(0) saturate(100%) drop-shadow(0 1px 2px rgba(255, 255, 255, 0.95));
+}
+
+.aeronave-estado-tierra {
+    filter: brightness(0) invert(73%) sepia(83%) saturate(1115%) hue-rotate(352deg) brightness(102%) contrast(101%) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.65));
+}
+
+.aeronave-estado-llegada {
+    filter: brightness(0) invert(48%) sepia(79%) saturate(2476%) hue-rotate(86deg) brightness(118%) contrast(119%) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.65));
+}
+
+.aeronave-estado-salida {
+    filter: brightness(0) invert(64%) sepia(35%) saturate(5412%) hue-rotate(162deg) brightness(103%) contrast(106%) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.65));
+}
+
+.aeronave-estado-emergencia {
+    filter: brightness(0) invert(14%) sepia(88%) saturate(6288%) hue-rotate(353deg) brightness(96%) contrast(124%) drop-shadow(0 0 5px #ff0000);
+}
+
+.popup-aeronave .leaflet-popup-content-wrapper {
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.25);
+}
+
+.popup-aeronave .leaflet-popup-content {
+    width: 210px !important;
+    margin: 14px 16px;
+}
+
+.aeronave-popup-titulo {
+    margin: 0 0 2px;
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.aeronave-popup-id {
+    margin-bottom: 9px;
+    color: #64748b;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.aeronave-popup-fila {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 3px 0;
+    color: #475569;
+    font-size: 0.82rem;
+}
+
+.aeronave-popup-fila strong {
+    color: #0f172a;
+    font-weight: 700;
+    text-align: right;
+}
+
 /* ==========================================================================
    CONFIGURACIÓN BASE
    ========================================================================== */
