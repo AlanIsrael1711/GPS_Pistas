@@ -5,7 +5,8 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD PERIMETRAL NORTE",
-        "velocidad": "40"
+        "velocidad": "40",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
@@ -255,6 +256,10 @@
             19.4342256
           ],
           [
+            -99.0667435,
+            19.4340259
+          ],
+          [
             -99.0675199,
             19.4335844
           ],
@@ -277,14 +282,15 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD PERIMETRAL SUR",
-        "velocidad": "30"
+        "velocidad": "30",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
         "coordinates": [
           [
-            -99.0676084,
-            19.4333553
+            -99.0675987,
+            19.4333852
           ],
           [
             -99.0676042,
@@ -533,14 +539,15 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD EXTERNA",
-        "velocidad": "20"
+        "velocidad": "20",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
         "coordinates": [
           [
-            -99.066738,
-            19.4340128
+            -99.0667435,
+            19.4340259
           ],
           [
             -99.0662075,
@@ -631,8 +638,8 @@
             19.4332378
           ],
           [
-            -99.0658268,
-            19.4336388
+            -99.065844,
+            19.4336616
           ]
         ]
       }
@@ -641,7 +648,8 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD EXTERNA",
-        "velocidad": "20"
+        "velocidad": "20",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
@@ -649,6 +657,10 @@
           [
             -99.0662075,
             19.433471
+          ],
+          [
+            -99.065844,
+            19.4336616
           ],
           [
             -99.0652201,
@@ -661,7 +673,8 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD EXTERNA",
-        "velocidad": "20"
+        "velocidad": "20",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
@@ -717,7 +730,8 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD EXTERNA",
-        "velocidad": "20"
+        "velocidad": "20",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
@@ -821,7 +835,8 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD EXTERNA",
-        "velocidad": "20"
+        "velocidad": "20",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
@@ -847,8 +862,12 @@
             19.423653
           ],
           [
-            -99.0817128,
-            19.4230783
+            -99.0817036,
+            19.4230747
+          ],
+          [
+            -99.0815949,
+            19.4230819
           ]
         ]
       }
@@ -857,7 +876,8 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD EXTERNA",
-        "velocidad": "20"
+        "velocidad": "20",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
@@ -867,8 +887,8 @@
             19.4239546
           ],
           [
-            -99.0831947,
-            19.4247406
+            -99.0831942,
+            19.424745
           ]
         ]
       }
@@ -877,7 +897,8 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD EXTERNA",
-        "velocidad": "20"
+        "velocidad": "20",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
@@ -897,6 +918,10 @@
           [
             -99.083381,
             19.4250623
+          ],
+          [
+            -99.0831942,
+            19.424745
           ],
           [
             -99.0828896,
@@ -1049,7 +1074,8 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD EXTERNA",
-        "velocidad": "20"
+        "velocidad": "20",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
@@ -1061,6 +1087,10 @@
           [
             -99.0815706,
             19.4233691
+          ],
+          [
+            -99.0815949,
+            19.4230819
           ],
           [
             -99.0816306,
@@ -1121,7 +1151,8 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD EXTERNA",
-        "velocidad": "20"
+        "velocidad": "20",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
@@ -1161,7 +1192,8 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD EXTERNA",
-        "velocidad": "20"
+        "velocidad": "20",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
@@ -1557,14 +1589,15 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD EXTERNA",
-        "velocidad": "20"
+        "velocidad": "20",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
         "coordinates": [
           [
-            -99.0753624,
-            19.4396103
+            -99.075367,
+            19.439602
           ],
           [
             -99.0746483,
@@ -1701,14 +1734,15 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD EXTERNA",
-        "velocidad": "20"
+        "velocidad": "20",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
         "coordinates": [
           [
-            -99.073087,
-            19.4407222
+            -99.0730903,
+            19.4407125
           ],
           [
             -99.0730871,
@@ -1799,8 +1833,8 @@
             19.4443576
           ],
           [
-            -99.0645782,
-            19.4438757
+            -99.0645739,
+            19.4438637
           ]
         ]
       }
@@ -1809,14 +1843,15 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD EXTERNA",
-        "velocidad": "20"
+        "velocidad": "20",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
         "coordinates": [
           [
-            -99.0790716,
-            19.4373704
+            -99.0790684,
+            19.4373722
           ],
           [
             -99.0787211,
@@ -1833,14 +1868,15 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD EXTERNA",
-        "velocidad": "20"
+        "velocidad": "20",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
         "coordinates": [
           [
-            -99.0786975,
-            19.4375815
+            -99.078697,
+            19.4375861
           ],
           [
             -99.0781067,
@@ -1857,7 +1893,8 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD EXTERNA",
-        "velocidad": "20"
+        "velocidad": "20",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
@@ -1953,14 +1990,15 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD INTERNA T1 Y T2",
-        "velocidad": "10"
+        "velocidad": "10",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
         "coordinates": [
           [
-            -99.08215,
-            19.4218811
+            -99.0821354,
+            19.4218848
           ],
           [
             -99.0823465,
@@ -2111,8 +2149,8 @@
             19.423472
           ],
           [
-            -99.0772099,
-            19.4237253
+            -99.0771942,
+            19.4237324
           ]
         ]
       }
@@ -2121,7 +2159,8 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD INTERNA T1 Y T2",
-        "velocidad": "10"
+        "velocidad": "10",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
@@ -2149,7 +2188,8 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD INTERNA T1 Y T2",
-        "velocidad": "10"
+        "velocidad": "10",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
@@ -2173,7 +2213,8 @@
       "type": "Feature",
       "properties": {
         "name": "VIALIDAD INTERNA T1 Y T2",
-        "velocidad": "10"
+        "velocidad": "10",
+        "peso": 1
       },
       "geometry": {
         "type": "LineString",
@@ -2241,6 +2282,25 @@
           [
             -99.0779097,
             19.4381506
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "VIALIDAD PARA EQUIPOS DE EMERGENCIA"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -99.0751966,
+            19.4387628
+          ],
+          [
+            -99.0727205,
+            19.4347513
           ]
         ]
       }
