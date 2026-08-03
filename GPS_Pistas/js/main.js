@@ -81,12 +81,59 @@ window.moverBotonesFlotantes = function(subir, idPanel = null) {
 // penalización se calcula en tiempo real dentro del A* (sección 5),
 // porque depende de dónde está parado el usuario en cada trazado.
 
-fetch('/resources/vialidades_final_completo.geojson')
-    .then(r => r.json())
-    .then(geojson => {
+// -------------------------------------------------------
+// [NUEVO] Vialidades destacadas: red obligatoria de viaje
+// -------------------------------------------------------
+// Cada tramo del grafo se marca con "esDestacada: true/false" según qué
+// tan cerca esté de alguna línea de vialidades_destacadas.geojson. Como
+// ambos archivos NO comparten coordenadas exactas (fueron digitalizados
+// por separado), la comparación es por CERCANÍA GEOMÉTRICA, no por
+// coincidencia de vértices.
+const TOLERANCIA_VIALIDAD_DESTACADA_M = 15; // ajustable si hay falsos +/-
+
+// Determina si el punto medio de una arista del grafo está lo bastante
+// cerca de alguna vialidad destacada. Usa un chequeo de bbox primero
+// (barato) antes de calcular la distancia real (turf.pointToLineDistance),
+// para no penalizar el rendimiento con miles de aristas.
+function esEdgeDestacada(p1, p2, destacadasConBbox) {
+    if (!destacadasConBbox || destacadasConBbox.length === 0) return false;
+
+    const medio = turf.midpoint(turf.point(p1), turf.point(p2));
+    const [mlng, mlat] = medio.geometry.coordinates;
+    const margenGrados = 0.0003; // ~30m de margen alrededor del bbox de cada vía destacada
+
+    for (let d of destacadasConBbox) {
+        const [minX, minY, maxX, maxY] = d.bbox;
+        if (mlng < minX - margenGrados || mlng > maxX + margenGrados ||
+            mlat < minY - margenGrados || mlat > maxY + margenGrados) {
+            continue; // descartado barato por bbox, sin calcular distancia real
+        }
+        const dist = turf.pointToLineDistance(medio, d.linea, { units: 'meters' });
+        if (dist <= TOLERANCIA_VIALIDAD_DESTACADA_M) return true;
+    }
+    return false;
+}
+
+Promise.all([
+    fetch('/resources/vialidades_final_completo.geojson').then(r => r.json()),
+    fetch('/resources/vialidades_destacadas.geojson').then(r => r.json()).catch(() => null)
+])
+    .then(([geojson, geojsonDestacadas]) => {
         let nodosTemp = [];
         window.viasNombradas = window.viasNombradas || [];
-        window.viasConLimite = window.viasConLimite || []; // [NUEVO]
+        window.viasConLimite = window.viasConLimite || [];
+
+        // [NUEVO] Preparamos las líneas de vialidades destacadas (con su
+        // bbox precalculado) para poder comparar cada tramo del grafo.
+        const destacadasConBbox = [];
+        if (geojsonDestacadas) {
+            turf.featureEach(geojsonDestacadas, function(feature) {
+                if (feature.geometry && feature.geometry.type === 'LineString') {
+                    destacadasConBbox.push({ linea: feature, bbox: turf.bbox(feature) });
+                }
+            });
+        }
+
         turf.featureEach(geojson, function(feature) {
             if (feature.geometry.type === 'LineString') {
                 const coords = feature.geometry.coordinates;
@@ -103,7 +150,7 @@ fetch('/resources/vialidades_final_completo.geojson')
                 const velocidadNum = velocidadRaw !== undefined && velocidadRaw !== null
                     ? parseInt(velocidadRaw, 10)
                     : null;
-                if (velocidadNum && !isNaN(velocidadNum)) {
+                if (velocidadNum !== null && !isNaN(velocidadNum)) {
                     window.viasConLimite.push({ linea: feature, maxspeed: velocidadNum });
                 }
 
@@ -120,19 +167,23 @@ fetch('/resources/vialidades_final_completo.geojson')
                     
                     const distReal = turf.distance(turf.point(p1), turf.point(p2));
 
+                    // [NUEVO] ¿Este tramo pertenece a la red obligatoria de
+                    // vialidades destacadas?
+                    const esDestacada = esEdgeDestacada(p1, p2, destacadasConBbox);
+
                     if (!grafoRutas.has(id1)) { grafoRutas.set(id1, []); nodosTemp.push(turf.point(p1, {id: id1})); }
                     if (!grafoRutas.has(id2)) { grafoRutas.set(id2, []); nodosTemp.push(turf.point(p2, {id: id2})); }
 
                     // cost = distancia real "pelona". El peso NO se aplica aquí porque
                     // su penalización depende de la posición del usuario en cada
                     // trazado (ver trazarRutaInteligente, sección 5).
-                    grafoRutas.get(id1).push({ target: id2, cost: distReal, peso });
-                    grafoRutas.get(id2).push({ target: id1, cost: distReal, peso }); 
+                    grafoRutas.get(id1).push({ target: id2, cost: distReal, peso, esDestacada });
+                    grafoRutas.get(id2).push({ target: id1, cost: distReal, peso, esDestacada }); 
                 }
             }
         });
         nodosCaminos = turf.featureCollection(nodosTemp);
-        console.log(`Grafo vial cargado: ${grafoRutas.size} nodos listos.`);
+        console.log(`Grafo vial cargado: ${grafoRutas.size} nodos listos. Vialidades destacadas registradas: ${destacadasConBbox.length}.`);
     })
     .catch(err => console.error("Error cargando la red vascular:", err));
 
@@ -349,21 +400,13 @@ window.solicitarRuta = function() {
 const UMBRAL_CERCANIA_ZONA_PESO_M = 600;
 const FACTOR_EVASION_FUERTE = 20;
 
-function trazarRutaInteligente(inicioGPS, finGPS) {
-    if (!grafoRutas.size || !nodosCaminos) {
-        dibujarLineaEnMapa([[inicioGPS.lat, inicioGPS.lng], [finGPS.lat, finGPS.lng]]);
-        return;
-    }
-
-    const ptInicio = turf.point([inicioGPS.lng, inicioGPS.lat]);
-    const ptFin = turf.point([finGPS.lng, finGPS.lat]);
-
-    const nodoInicio = turf.nearestPoint(ptInicio, nodosCaminos);
-    const nodoFin = turf.nearestPoint(ptFin, nodosCaminos);
-
-    const startId = nodoInicio.properties.id;
-    const endId = nodoFin.properties.id;
-
+// -------------------------------------------------------
+// [NUEVO] Motor A* reutilizable, extraído para poder ejecutarlo dos
+// veces: primero restringido SOLO a vialidades destacadas (obligatorio),
+// y si eso no logra conectar origen y destino, sin restricción (usando
+// el resto de la red como respaldo).
+// -------------------------------------------------------
+function ejecutarBusquedaAEstrella(ptInicio, startId, endId, soloDestacadas) {
     const openHeap = new MinHeap();
     const gScores = new Map();
     const parents = new Map();
@@ -382,7 +425,7 @@ function trazarRutaInteligente(inicioGPS, finGPS) {
         const [cLng, cLat] = currId.split(',').map(Number);
         const [fLng, fLat] = endId.split(',').map(Number);
         const distAlObjetivo = Math.hypot(cLng - fLng, cLat - fLat);
-        
+
         if (distAlObjetivo < distanciaMinimaAlFinal) {
             distanciaMinimaAlFinal = distAlObjetivo;
             mejorNodoAlcanzado = currId;
@@ -392,6 +435,12 @@ function trazarRutaInteligente(inicioGPS, finGPS) {
         const vecinos = grafoRutas.get(currId) || [];
 
         for (let v of vecinos) {
+            // [NUEVO] Fase restringida: se descarta por completo cualquier
+            // tramo que NO sea una vialidad destacada. Esto es lo que
+            // garantiza el "obligatorio, sin excepción" (no es una simple
+            // penalización, es un bloqueo absoluto en esta fase).
+            if (soloDestacadas && !v.esDestacada) continue;
+
             let penalizacion = 1.0;
             if (window.evitarPistasVuelo && typeof window.esZonaPuente === 'function') {
                 const [lng, lat] = v.target.split(',').map(Number);
@@ -400,13 +449,16 @@ function trazarRutaInteligente(inicioGPS, finGPS) {
                 }
             }
 
-            // --- Evasión por peso (zonas de mayor afluencia) ---
-            // Si el tramo tiene peso > 1, se penaliza fuerte para que el A*
-            // prefiera un camino más largo, EXCEPTO si el usuario ya arrancó
-            // muy cerca de ese tramo (UMBRAL_CERCANIA_ZONA_PESO_M), en cuyo
-            // caso se le permite pasar sin castigo extra.
+            // --- [CORREGIDO] Evasión estricta de vías complementarias ---
             let factorPeso = 1.0;
-            if (v.peso && v.peso > 1) {
+            
+            if (!v.esDestacada) {
+                // [CLAVE] Castigo masivo (x1000). Esto obliga matemáticamente al GPS a 
+                // huir hacia la red destacada inmediatamente y no soltarla nunca, 
+                // usando la vía complementaria SOLO en la última milla si el origen/destino está aislado.
+                factorPeso = 1000;
+            } else if (v.peso && v.peso > 1) {
+                // Mantenemos tu lógica original intacta para las zonas de afluencia
                 const [lngV, latV] = v.target.split(',').map(Number);
                 const distUsuarioM = turf.distance(ptInicio, turf.point([lngV, latV]), { units: 'meters' });
                 factorPeso = (distUsuarioM > UMBRAL_CERCANIA_ZONA_PESO_M)
@@ -416,19 +468,52 @@ function trazarRutaInteligente(inicioGPS, finGPS) {
 
             const tentativeG = currG + (v.cost * factorPeso);
             const neighborG = gScores.has(v.target) ? gScores.get(v.target) : Infinity;
-        
+
             if (tentativeG < neighborG) {
                 parents.set(v.target, currId);
                 gScores.set(v.target, tentativeG);
-        
+
                 const pC = v.target.split(',').map(Number);
                 const pF = endId.split(',').map(Number);
                 const h = turf.distance(turf.point(pC), turf.point(pF));
-        
+
                 openHeap.push(v.target, tentativeG + h);
             }
         }
     }
+
+    return { caminoEncontrado, mejorNodoAlcanzado, parents };
+}
+
+function trazarRutaInteligente(inicioGPS, finGPS) {
+    if (!grafoRutas.size || !nodosCaminos) {
+        dibujarLineaEnMapa([[inicioGPS.lat, inicioGPS.lng], [finGPS.lat, finGPS.lng]]);
+        return;
+    }
+
+    const ptInicio = turf.point([inicioGPS.lng, inicioGPS.lat]);
+    const ptFin = turf.point([finGPS.lng, finGPS.lat]);
+
+    const nodoInicio = turf.nearestPoint(ptInicio, nodosCaminos);
+    const nodoFin = turf.nearestPoint(ptFin, nodosCaminos);
+
+    const startId = nodoInicio.properties.id;
+    const endId = nodoFin.properties.id;
+
+    // [NUEVO] Fase 1: SIEMPRE se intenta primero una ruta usando
+    // EXCLUSIVAMENTE vialidades destacadas.
+    let resultado = ejecutarBusquedaAEstrella(ptInicio, startId, endId, true);
+    let usoRedCompleta = false;
+
+    // [NUEVO] Fase 2: solo si la red de vialidades destacadas está
+    // "cortada" (no conecta origen con destino), se permite usar el
+    // resto de la red vial como respaldo.
+    if (!resultado.caminoEncontrado) {
+        resultado = ejecutarBusquedaAEstrella(ptInicio, startId, endId, false);
+        usoRedCompleta = true;
+    }
+
+    const { caminoEncontrado, mejorNodoAlcanzado, parents } = resultado;
 
     const pathCoords = [];
     let curr = caminoEncontrado ? endId : mejorNodoAlcanzado;
@@ -449,6 +534,10 @@ function trazarRutaInteligente(inicioGPS, finGPS) {
     }
     
     pathCoords.push(finGPS);
+
+    if (usoRedCompleta) {
+        console.warn("La red de vialidades destacadas está cortada en este tramo; se usó el resto de la red vial como respaldo.");
+    }
 
     dibujarLineaEnMapa(pathCoords.map(pt => [pt.lat, pt.lng]));
     // [NUEVO] Generamos instrucciones y flechas para esta ruta
