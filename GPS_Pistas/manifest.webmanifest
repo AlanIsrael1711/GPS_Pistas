@@ -1,0 +1,17 @@
+{
+  "name": "GPS Pistas",
+  "short_name": "GPS Pistas",
+  "description": "Navegación terrestre aeroportuaria con modo de bajo consumo y uso sin conexión.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#e6ebef",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/resources/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
