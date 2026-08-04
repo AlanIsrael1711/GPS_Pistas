@@ -1,63 +1,63 @@
+'use strict';
+
+const crypto = require('crypto');
 const express = require('express');
-const router = express.Router();
 const path = require('path');
+const radarStore = require('../radar/radarStore');
 
-const RADAR_API_URL = process.env.RADAR_API_URL || 'http://172.16.2.125:4001/api/vuelos-live';
+const router = express.Router();
+const parsearJsonRadar = express.json({ limit: '256kb', strict: true });
 
-// Expone al navegador solamente los datos necesarios para dibujar las
-// aeronaves. La consulta se realiza desde este servidor para que los clientes
-// móviles no dependan de CORS ni intenten mezclar una página HTTPS con la API
-// HTTP del radar.
-router.get('/api/vuelos-live', async (req, res) => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
+function tokenValido(recibido) {
+    const esperado = process.env.RADAR_BRIDGE_TOKEN;
+    if (!esperado || !recibido) return false;
+    const a = Buffer.from(String(esperado));
+    const b = Buffer.from(String(recibido));
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+router.post('/api/radar/push', parsearJsonRadar, (req, res) => {
+    if (!process.env.RADAR_BRIDGE_TOKEN) {
+        return res.status(503).json({ error: 'El puente del radar no está configurado en el host' });
+    }
+    if (!tokenValido(req.get('x-radar-token'))) {
+        return res.status(401).json({ error: 'Token del puente inválido' });
+    }
 
     try {
-        const respuesta = await fetch(RADAR_API_URL, {
-            signal: controller.signal,
-            headers: { Accept: 'application/json' }
+        const resultado = radarStore.reemplazar(req.body && req.body.vuelos);
+        if (resultado.cambio) {
+            const io = req.app.get('io');
+            io.to('radar-clientes').emit('radar:delta', resultado.delta);
+        }
+        res.json({
+            ok: true,
+            cambio: resultado.cambio,
+            version: resultado.estado.version,
+            recibidas: resultado.estado.vuelos.length,
+            servidorEn: new Date().toISOString()
         });
-
-        if (!respuesta.ok) {
-            throw new Error(`La API del radar respondió ${respuesta.status}`);
-        }
-
-        const datos = await respuesta.json();
-        if (!Array.isArray(datos)) {
-            throw new Error('La API del radar no devolvió una lista de aeronaves');
-        }
-
-        const vuelos = datos
-            .filter(vuelo => vuelo && vuelo.id && vuelo.lat != null && vuelo.lng != null)
-            .map(vuelo => ({
-                id: vuelo.id,
-                callsign: vuelo.callsign,
-                lat: vuelo.lat,
-                lng: vuelo.lng,
-                track: vuelo.track,
-                speed: vuelo.speed,
-                alt: vuelo.alt,
-                status: vuelo.status,
-                pista: vuelo.pista,
-                tipo: vuelo.tipo,
-                operacion: vuelo.asa_TipoOperacion
-            }));
-
-        res.set('Cache-Control', 'no-store');
-        res.json(vuelos);
     } catch (error) {
-        const detalle = error.name === 'AbortError'
-            ? 'La API del radar tardó demasiado en responder'
-            : error.message;
-
-        console.error(`[Radar] ${detalle}`);
-        res.status(502).json({ error: 'No fue posible consultar las aeronaves en vivo' });
-    } finally {
-        clearTimeout(timeout);
+        res.status(400).json({ error: error.message });
     }
 });
 
-// Definir la ruta principal (raíz)
+router.get('/api/vuelos-live', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json(radarStore.estado());
+});
+
+router.get('/api/radar/status', (req, res) => {
+    const estado = radarStore.estado();
+    res.json({
+        aeronaves: estado.vuelos.length,
+        version: estado.version,
+        actualizadoEn: estado.actualizadoEn,
+        ultimoPuenteEn: estado.ultimoPuenteEn,
+        obsoleto: estado.obsoleto
+    });
+});
+
 router.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../vistas/index.html'));
 });
