@@ -1,12 +1,9 @@
-// =======================================================
-// mapAeronaves.js - Aeronaves en vivo sobre el mapa de GPS_Pistas
-// =======================================================
-
+// Aeronaves en vivo: una sola conexión por navegador, caché local y deltas.
 (function iniciarCapaAeronaves() {
     'use strict';
 
     const ENDPOINT = '/api/vuelos-live';
-    const INTERVALO_ACTUALIZACION_MS = 2000;
+    const CACHE_KEY = 'gpsPistasRadarUltimoEstadoV2';
     const ESTADOS_EMERGENCIA = new Set(['EMERGENCIA', 'SECUESTRO', 'FALLA_RADIO']);
     const archivosPorTipo = {
         HELICOPTERO: 'helicoptero.svg',
@@ -17,17 +14,19 @@
 
     const aeronavesEnMapa = new Map();
     const capaAeronaves = L.layerGroup().addTo(window.map);
-    let consultaActiva = false;
-    let avisoConexionMostrado = false;
+    const socket = window.gpsSocket || io({ transports: ['websocket', 'polling'] });
+    let actualizadoEn = null;
+    let estadoObsoleto = true;
     let frameRotacion = null;
+    let estadoRecibido = false;
 
+    window.gpsSocket = socket;
     window.capaAeronaves = capaAeronaves;
     window.aeronavesEnMapa = aeronavesEnMapa;
 
     function texto(valor, respaldo = '--') {
         if (valor === null || valor === undefined) return respaldo;
-        const resultado = String(valor).trim();
-        return resultado || respaldo;
+        return String(valor).trim() || respaldo;
     }
 
     function numero(valor) {
@@ -40,10 +39,7 @@
         const id = texto(vuelo && vuelo.id, '');
         const lat = numero(vuelo && vuelo.lat);
         const lng = numero(vuelo && vuelo.lng);
-
-        if (!id || lat === null || lng === null || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-            return null;
-        }
+        if (!id || lat === null || lng === null || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
 
         return {
             id,
@@ -61,8 +57,7 @@
     }
 
     function rutaIcono(tipo) {
-        const archivo = archivosPorTipo[tipo] || 'avion.svg';
-        return `/resources/aeronaves/${archivo}`;
+        return `/resources/aeronaves/${archivosPorTipo[tipo] || 'avion.svg'}`;
     }
 
     function claseEstado(vuelo) {
@@ -79,55 +74,44 @@
 
     function agregarFila(contenedor, etiqueta, valor) {
         if (valor === null || valor === undefined || valor === '') return;
-
         const fila = document.createElement('div');
         fila.className = 'aeronave-popup-fila';
-
         const nombre = document.createElement('span');
         nombre.textContent = etiqueta;
-
         const dato = document.createElement('strong');
         dato.textContent = String(valor);
-
         fila.append(nombre, dato);
         contenedor.appendChild(fila);
     }
 
     function crearContenidoPopup(vuelo) {
         const contenedor = document.createElement('div');
-
         const titulo = document.createElement('h3');
         titulo.className = 'aeronave-popup-titulo';
         titulo.textContent = vuelo.callsign || 'Aeronave';
-
         const identificador = document.createElement('div');
         identificador.className = 'aeronave-popup-id';
         identificador.textContent = `HEX ${vuelo.id}`;
-
         contenedor.append(titulo, identificador);
         agregarFila(contenedor, 'Estado', estadoLegible(vuelo.status));
         agregarFila(contenedor, 'Altitud', vuelo.alt === null ? null : `${vuelo.alt.toLocaleString('es-MX')} ft`);
         agregarFila(contenedor, 'Velocidad', vuelo.speed === null ? null : `${vuelo.speed.toLocaleString('es-MX')} kt`);
         agregarFila(contenedor, 'Ubicación', vuelo.pista);
-
         return contenedor;
     }
 
     function rotacionEnPantalla(track) {
-        const rumbo = track === null ? 0 : track;
         const bearing = typeof window.map.getBearing === 'function' ? window.map.getBearing() : 0;
-        return ((rumbo - bearing) % 360 + 360) % 360;
+        return ((((track === null ? 0 : track) - bearing) % 360) + 360) % 360;
     }
 
     function aplicarRotacion(entrada) {
-        if (!entrada.img) return;
-        entrada.img.style.transform = `rotateZ(${rotacionEnPantalla(entrada.datos.track)}deg)`;
+        if (entrada.img) entrada.img.style.transform = `rotateZ(${rotacionEnPantalla(entrada.datos.track)}deg)`;
     }
 
     function crearMarcador(vuelo) {
         const contenido = document.createElement('div');
         contenido.className = 'aeronave-marcador-contenido';
-
         const img = document.createElement('img');
         img.className = `aeronave-icono ${claseEstado(vuelo)}`;
         img.src = rutaIcono(vuelo.tipo);
@@ -135,16 +119,14 @@
         img.draggable = false;
         contenido.appendChild(img);
 
-        const icono = L.divIcon({
-            className: 'marcador-aeronave',
-            html: contenido,
-            iconSize: [36, 36],
-            iconAnchor: [18, 18],
-            popupAnchor: [0, -17]
-        });
-
         const marker = L.marker([vuelo.lat, vuelo.lng], {
-            icon: icono,
+            icon: L.divIcon({
+                className: 'marcador-aeronave',
+                html: contenido,
+                iconSize: [36, 36],
+                iconAnchor: [18, 18],
+                popupAnchor: [0, -17]
+            }),
             keyboard: true,
             riseOnHover: true,
             title: vuelo.callsign || `Aeronave ${vuelo.id}`
@@ -155,7 +137,6 @@
             closeButton: true,
             autoPanPadding: [24, 24]
         });
-
         const entrada = { marker, img, datos: vuelo };
         aeronavesEnMapa.set(vuelo.id, entrada);
         aplicarRotacion(entrada);
@@ -165,91 +146,180 @@
         entrada.datos = vuelo;
         entrada.marker.setLatLng([vuelo.lat, vuelo.lng]);
         entrada.marker.setPopupContent(crearContenidoPopup(vuelo));
-
         const nuevaRuta = rutaIcono(vuelo.tipo);
         if (!entrada.img.src.endsWith(nuevaRuta)) entrada.img.src = nuevaRuta;
         entrada.img.className = `aeronave-icono ${claseEstado(vuelo)}`;
-
-        const elementoMarker = entrada.marker.getElement();
-        if (elementoMarker) {
-            elementoMarker.setAttribute('aria-label', vuelo.callsign || `Aeronave ${vuelo.id}`);
-            elementoMarker.setAttribute('title', vuelo.callsign || `Aeronave ${vuelo.id}`);
-        }
-
         aplicarRotacion(entrada);
     }
 
-    function sincronizarAeronaves(vuelos) {
-        const idsRecibidos = new Set();
-
-        for (const vueloCrudo of vuelos) {
-            const vuelo = normalizarVuelo(vueloCrudo);
+    function aplicarActualizados(vuelos) {
+        for (const crudo of vuelos || []) {
+            const vuelo = normalizarVuelo(crudo);
             if (!vuelo) continue;
-
-            idsRecibidos.add(vuelo.id);
             const entrada = aeronavesEnMapa.get(vuelo.id);
             if (entrada) actualizarMarcador(entrada, vuelo);
             else crearMarcador(vuelo);
         }
+    }
 
+    function sincronizarEstado(vuelos) {
+        const ids = new Set();
+        for (const crudo of vuelos || []) {
+            const vuelo = normalizarVuelo(crudo);
+            if (!vuelo) continue;
+            ids.add(vuelo.id);
+            const entrada = aeronavesEnMapa.get(vuelo.id);
+            if (entrada) actualizarMarcador(entrada, vuelo);
+            else crearMarcador(vuelo);
+        }
         for (const [id, entrada] of aeronavesEnMapa) {
-            if (!idsRecibidos.has(id)) {
+            if (!ids.has(id)) {
                 capaAeronaves.removeLayer(entrada.marker);
                 aeronavesEnMapa.delete(id);
             }
         }
     }
 
-    async function consultarAeronaves() {
-        if (consultaActiva || document.hidden) return;
-        consultaActiva = true;
-
-        try {
-            const respuesta = await fetch(ENDPOINT, {
-                headers: { Accept: 'application/json' },
-                cache: 'no-store'
-            });
-
-            if (!respuesta.ok) throw new Error(`Respuesta ${respuesta.status}`);
-            const vuelos = await respuesta.json();
-            if (!Array.isArray(vuelos)) throw new Error('Formato de respuesta inválido');
-
-            sincronizarAeronaves(vuelos);
-            avisoConexionMostrado = false;
-        } catch (error) {
-            if (!avisoConexionMostrado) {
-                console.warn('No fue posible actualizar las aeronaves en vivo:', error.message);
-                avisoConexionMostrado = true;
-            }
-        } finally {
-            consultaActiva = false;
+    function eliminarIds(ids) {
+        for (const id of ids || []) {
+            const entrada = aeronavesEnMapa.get(String(id));
+            if (!entrada) continue;
+            capaAeronaves.removeLayer(entrada.marker);
+            aeronavesEnMapa.delete(String(id));
         }
     }
 
-    function programarRotacion() {
+    function guardarCache() {
+        try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify({
+                vuelos: [...aeronavesEnMapa.values()].map(entrada => entrada.datos),
+                actualizadoEn
+            }));
+        } catch (_) {}
+    }
+
+    function cargarCache() {
+        try {
+            const cache = JSON.parse(localStorage.getItem(CACHE_KEY));
+            if (cache && Array.isArray(cache.vuelos)) {
+                sincronizarEstado(cache.vuelos);
+                actualizadoEn = cache.actualizadoEn || null;
+                estadoObsoleto = true;
+            }
+        } catch (_) {}
+    }
+
+    function actualizarIndicador() {
+        const indicador = document.getElementById('estadoDatosRadar');
+        if (!indicador) return;
+        const edad = actualizadoEn ? Date.now() - Date.parse(actualizadoEn) : Infinity;
+        indicador.className = 'estado-datos-radar';
+
+        if (!navigator.onLine) {
+            indicador.classList.add('sin-conexion');
+            indicador.textContent = aeronavesEnMapa.size ? 'Sin conexión · último radar guardado' : 'Sin conexión';
+        } else if (!socket.connected) {
+            indicador.classList.add('conectando');
+            indicador.textContent = 'Conectando al radar…';
+        } else if (!actualizadoEn || estadoObsoleto || edad > 45000) {
+            indicador.classList.add('obsoleto');
+            indicador.textContent = actualizadoEn ? 'Radar sin actualizar' : 'Radar sin datos';
+        } else {
+            indicador.classList.add('en-vivo');
+            indicador.textContent = `Aeronaves en vivo · ${aeronavesEnMapa.size}`;
+        }
+        if (actualizadoEn) indicador.title = `Última actualización: ${new Date(actualizadoEn).toLocaleString('es-MX')}`;
+    }
+
+    function recibirEstado(payload) {
+        const estado = Array.isArray(payload) ? { vuelos: payload } : (payload || {});
+        if (!Array.isArray(estado.vuelos)) return;
+        sincronizarEstado(estado.vuelos);
+        actualizadoEn = estado.actualizadoEn || new Date().toISOString();
+        estadoObsoleto = Boolean(estado.obsoleto);
+        estadoRecibido = true;
+        guardarCache();
+        actualizarIndicador();
+    }
+
+    function recibirDelta(delta) {
+        if (!delta) return;
+        aplicarActualizados(delta.actualizados);
+        eliminarIds(delta.eliminados);
+        actualizadoEn = delta.actualizadoEn || new Date().toISOString();
+        estadoObsoleto = false;
+        estadoRecibido = true;
+        guardarCache();
+        actualizarIndicador();
+    }
+
+    function capaHabilitada() {
+        const checkbox = document.getElementById('chkAeronaves');
+        return !checkbox || checkbox.checked;
+    }
+
+    function suscribir() {
+        if (socket.connected && capaHabilitada() && !document.hidden) socket.emit('radar:suscribir');
+    }
+
+    function desuscribir() {
+        if (socket.connected) socket.emit('radar:desuscribir');
+    }
+
+    async function consultarEstadoUnaVez() {
+        if (!navigator.onLine || estadoRecibido) return;
+        try {
+            const respuesta = await fetch(ENDPOINT, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+            if (respuesta.ok) recibirEstado(await respuesta.json());
+        } catch (_) {
+            actualizarIndicador();
+        }
+    }
+
+    socket.on('connect', () => {
+        actualizarIndicador();
+        suscribir();
+    });
+    socket.on('disconnect', actualizarIndicador);
+    socket.on('radar:estado', recibirEstado);
+    socket.on('radar:delta', recibirDelta);
+
+    window.map.on('rotate', () => {
         if (frameRotacion !== null) return;
         frameRotacion = requestAnimationFrame(() => {
             for (const entrada of aeronavesEnMapa.values()) aplicarRotacion(entrada);
             frameRotacion = null;
         });
-    }
-
-    window.map.on('rotate', programarRotacion);
+    });
 
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) consultarAeronaves();
+        if (document.hidden) desuscribir();
+        else suscribir();
     });
+    window.addEventListener('online', () => {
+        actualizarIndicador();
+        suscribir();
+    });
+    window.addEventListener('offline', actualizarIndicador);
 
     document.addEventListener('DOMContentLoaded', () => {
         const checkbox = document.getElementById('chkAeronaves');
-        if (!checkbox) return;
-
-        checkbox.addEventListener('change', event => {
-            if (event.target.checked) capaAeronaves.addTo(window.map);
-            else window.map.removeLayer(capaAeronaves);
-        });
+        if (checkbox) {
+            checkbox.addEventListener('change', event => {
+                if (event.target.checked) {
+                    capaAeronaves.addTo(window.map);
+                    suscribir();
+                } else {
+                    window.map.removeLayer(capaAeronaves);
+                    desuscribir();
+                }
+            });
+        }
+        actualizarIndicador();
     });
 
-    consultarAeronaves();
-    setInterval(consultarAeronaves, INTERVALO_ACTUALIZACION_MS);
+    cargarCache();
+    actualizarIndicador();
+    setTimeout(consultarEstadoUnaVez, 5000);
+    setInterval(actualizarIndicador, 10000);
 })();

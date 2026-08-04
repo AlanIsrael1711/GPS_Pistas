@@ -100,6 +100,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function seleccionarResultado(lugar) {
+            if (!window.SelectionPolicy || !window.SelectionPolicy.esEstructura(lugar.feature)) {
+                localStorage.removeItem('historialGPS_Aeropuerto');
+                return;
+            }
             cerrarBuscadorUI();
             inputBuscador.value = lugar.nombre;
             if (btnLimpiar) btnLimpiar.classList.remove('d-none');
@@ -113,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // la del perímetro exterior Y la de esUbicacionValida (zonas restringidas internas).
             // Los lugares del historial ya fueron validados cuando el usuario los seleccionó
             // por primera vez desde el mapa, así que es seguro omitir la revalidación.
-            window.zonaPermitidaTemporal = lugar.feature || true;
+            window.zonaPermitidaTemporal = lugar.feature;
 
             if (typeof window.irHacia === 'function') window.irHacia(lugar.lat, lugar.lng, lugar.nombre);
         }
@@ -159,7 +163,7 @@ const coincidencias = directorio.filter(lugar => {
                         // [CORRECCIÓN] Lo mismo aplica para resultados del buscador en vivo:
                         // el lugar viene del directorioLugares que se pobló desde los GeoJSONs
                         // cargados, así que ya es un punto conocido y válido del mapa.
-                        window.zonaPermitidaTemporal = lugar.feature || true;
+                        window.zonaPermitidaTemporal = lugar.feature;
                         seleccionarResultado({ nombre: lugar.nombre, lat: cLat, lng: cLng, feature: lugar.feature || null });
                     });
                     listaResultados.appendChild(li);

@@ -2,8 +2,6 @@
 // main.js - GPS, Sockets, Motor VECTORIAL y Brújula de Rotación
 // =======================================================
 
-const socket = io();
-
 // Un único marcador local: solo tú existes en el mapa.
 // Se elimina el Map de marcadores múltiples y el sistema multijugador.
 let miMarcadorLocal = null;
@@ -13,22 +11,13 @@ let marcador = null;
 let siguiendoUsuario = false;
 
 // =======================================================
-// 1. ESTRUCTURA DE DATOS: MIN-HEAP
-// =======================================================
-class MinHeap {
-    constructor() { this.data = []; }
-    push(val, score) { this.data.push({val, score}); this.up(this.data.length - 1); }
-    pop() { if (this.data.length === 0) return null; const top = this.data[0], bottom = this.data.pop(); if (this.data.length > 0) { this.data[0] = bottom; this.down(0); } return top.val; }
-    up(i) { while (i > 0) { let p = (i - 1) >> 1; if (this.data[p].score <= this.data[i].score) break; let tmp = this.data[i]; this.data[i] = this.data[p]; this.data[p] = tmp; i = p; } }
-    down(i) { const len = this.data.length; while ((i << 1) + 1 < len) { let left = (i << 1) + 1, right = left + 1, min = (right < len && this.data[right].score < this.data[left].score) ? right : left; if (this.data[i].score <= this.data[min].score) break; let tmp = this.data[i]; this.data[i] = this.data[min]; this.data[min] = tmp; i = min; } }
-    get length() { return this.data.length; }
-}
-
-// =======================================================
-// 2. CONSTRUCCIÓN DEL GRAFO VIAL
+// 1. CONSTRUCCIÓN DEL GRAFO VIAL
 // =======================================================
 let grafoRutas = new Map();
-let nodosCaminos = null; 
+let nodosCaminos = null;
+let grafoRutasCargado = false;
+let resolverCargaGrafo;
+const promesaGrafoRutas = new Promise(resolve => { resolverCargaGrafo = resolve; });
 
 // -------------------------------------------------------
 // [CORREGIDO] Función dinámica definitiva para botones flotantes
@@ -36,6 +25,8 @@ let nodosCaminos = null;
 window.moverBotonesFlotantes = function(subir, idPanel = null) {
     const contenedorBotones = document.querySelector('.fab-container');
     if (!contenedorBotones) return;
+    window._versionMovimientoFab = (window._versionMovimientoFab || 0) + 1;
+    const versionActual = window._versionMovimientoFab;
 
     if (subir && idPanel) {
         const panel = document.getElementById(idPanel);
@@ -44,10 +35,11 @@ window.moverBotonesFlotantes = function(subir, idPanel = null) {
             void panel.offsetHeight; 
 
             requestAnimationFrame(() => {
+                if (versionActual !== window._versionMovimientoFab) return;
                 // Ahora sí, la altura es 100% precisa
                 const alturaReal = panel.offsetHeight;
                 
-                if (idPanel === 'panelNavegacion') {
+                if (idPanel === 'panelNavegacion' || idPanel === 'panelAlternativasRuta') {
                     // MODO NAVEGACIÓN: Acuesta los botones (horizontal)
                     contenedorBotones.classList.add('modo-horizontal');
                     // Reducimos el extra a + 5 porque los botones ya tienen 30px de base en el CSS
@@ -82,7 +74,7 @@ window.moverBotonesFlotantes = function(subir, idPanel = null) {
 // porque depende de dónde está parado el usuario en cada trazado.
 
 // -------------------------------------------------------
-// [NUEVO] Vialidades destacadas: red obligatoria de viaje
+// Vialidades destacadas: referencia para los perfiles de ruta
 // -------------------------------------------------------
 // Cada tramo del grafo se marca con "esDestacada: true/false" según qué
 // tan cerca esté de alguna línea de vialidades_destacadas.geojson. Como
@@ -95,8 +87,8 @@ const TOLERANCIA_VIALIDAD_DESTACADA_M = 15; // ajustable si hay falsos +/-
 // cerca de alguna vialidad destacada. Usa un chequeo de bbox primero
 // (barato) antes de calcular la distancia real (turf.pointToLineDistance),
 // para no penalizar el rendimiento con miles de aristas.
-function esEdgeDestacada(p1, p2, destacadasConBbox) {
-    if (!destacadasConBbox || destacadasConBbox.length === 0) return false;
+function obtenerVialidadDestacada(p1, p2, destacadasConBbox) {
+    if (!destacadasConBbox || destacadasConBbox.length === 0) return null;
 
     const medio = turf.midpoint(turf.point(p1), turf.point(p2));
     const [mlng, mlat] = medio.geometry.coordinates;
@@ -109,17 +101,46 @@ function esEdgeDestacada(p1, p2, destacadasConBbox) {
             continue; // descartado barato por bbox, sin calcular distancia real
         }
         const dist = turf.pointToLineDistance(medio, d.linea, { units: 'meters' });
-        if (dist <= TOLERANCIA_VIALIDAD_DESTACADA_M) return true;
+        if (dist <= TOLERANCIA_VIALIDAD_DESTACADA_M) return d;
     }
-    return false;
+    return null;
+}
+
+function obtenerComponentePrincipal(grafo) {
+    const visitados = new Set();
+    let principal = new Set();
+
+    for (const inicio of grafo.keys()) {
+        if (visitados.has(inicio)) continue;
+        const componente = new Set([inicio]);
+        const pendientes = [inicio];
+        visitados.add(inicio);
+
+        while (pendientes.length > 0) {
+            const actual = pendientes.pop();
+            for (const vecino of grafo.get(actual) || []) {
+                if (visitados.has(vecino.target)) continue;
+                visitados.add(vecino.target);
+                componente.add(vecino.target);
+                pendientes.push(vecino.target);
+            }
+        }
+
+        if (componente.size > principal.size) principal = componente;
+    }
+
+    return principal;
 }
 
 Promise.all([
-    fetch('/resources/vialidades_final_completo.geojson').then(r => r.json()),
+    // Esta red sí conserva sus pesos originales e incluye vialidades
+    // complementarias y 377 tramos de rodaje (aeroway=taxiway).
+    fetch('/resources/red_vascular_unida_con_peso.geojson').then(r => r.json()),
     fetch('/resources/vialidades_destacadas.geojson').then(r => r.json()).catch(() => null)
 ])
     .then(([geojson, geojsonDestacadas]) => {
-        let nodosTemp = [];
+        const nodosTemp = new Map();
+        grafoRutas = new Map();
         window.viasNombradas = window.viasNombradas || [];
         window.viasConLimite = window.viasConLimite || [];
 
@@ -129,7 +150,13 @@ Promise.all([
         if (geojsonDestacadas) {
             turf.featureEach(geojsonDestacadas, function(feature) {
                 if (feature.geometry && feature.geometry.type === 'LineString') {
-                    destacadasConBbox.push({ linea: feature, bbox: turf.bbox(feature) });
+                    const propiedades = feature.properties || {};
+                    destacadasConBbox.push({
+                        linea: feature,
+                        bbox: turf.bbox(feature),
+                        nombre: propiedades.name || null,
+                        velocidad: Number(propiedades.velocidad) || null
+                    });
                 }
             });
         }
@@ -167,73 +194,55 @@ Promise.all([
                     
                     const distReal = turf.distance(turf.point(p1), turf.point(p2));
 
-                    // [NUEVO] ¿Este tramo pertenece a la red obligatoria de
-                    // vialidades destacadas?
-                    const esDestacada = esEdgeDestacada(p1, p2, destacadasConBbox);
+                    // ¿Este tramo coincide con una vialidad destacada?
+                    const vialidadDestacada = obtenerVialidadDestacada(p1, p2, destacadasConBbox);
+                    const esDestacada = Boolean(vialidadDestacada);
+                    const esRodaje = feature.properties && feature.properties.aeroway === 'taxiway';
+                    const nombreTramo = nombreVia || (vialidadDestacada && vialidadDestacada.nombre) || null;
+                    const velocidadTramo = velocidadNum || (vialidadDestacada && vialidadDestacada.velocidad) || null;
 
-                    if (!grafoRutas.has(id1)) { grafoRutas.set(id1, []); nodosTemp.push(turf.point(p1, {id: id1})); }
-                    if (!grafoRutas.has(id2)) { grafoRutas.set(id2, []); nodosTemp.push(turf.point(p2, {id: id2})); }
+                    if (!grafoRutas.has(id1)) { grafoRutas.set(id1, []); nodosTemp.set(id1, turf.point(p1, {id: id1})); }
+                    if (!grafoRutas.has(id2)) { grafoRutas.set(id2, []); nodosTemp.set(id2, turf.point(p2, {id: id2})); }
 
-                    // cost = distancia real "pelona". El peso NO se aplica aquí porque
-                    // su penalización depende de la posición del usuario en cada
-                    // trazado (ver trazarRutaInteligente, sección 5).
-                    grafoRutas.get(id1).push({ target: id2, cost: distReal, peso, esDestacada });
-                    grafoRutas.get(id2).push({ target: id1, cost: distReal, peso, esDestacada }); 
+                    // cost conserva la distancia real. Las preferencias de cada
+                    // perfil se aplican al calcular las alternativas (sección 5).
+                    const metadatos = { cost: distReal, peso, esDestacada, esRodaje, nombre: nombreTramo, velocidad: velocidadTramo };
+                    grafoRutas.get(id1).push({ target: id2, ...metadatos });
+                    grafoRutas.get(id2).push({ target: id1, ...metadatos });
                 }
             }
         });
-        nodosCaminos = turf.featureCollection(nodosTemp);
-        console.log(`Grafo vial cargado: ${grafoRutas.size} nodos listos. Vialidades destacadas registradas: ${destacadasConBbox.length}.`);
+
+        // Evita que el origen o destino se adhieran a una isla aislada de la red.
+        const componentePrincipal = obtenerComponentePrincipal(grafoRutas);
+        nodosCaminos = turf.featureCollection(
+            [...componentePrincipal].map(id => nodosTemp.get(id)).filter(Boolean)
+        );
+        grafoRutasCargado = true;
+        resolverCargaGrafo(true);
+        console.log(`Grafo vial cargado: ${grafoRutas.size} nodos; componente principal: ${componentePrincipal.size}.`);
     })
-    .catch(err => console.error("Error cargando la red vascular:", err));
+    .catch(err => {
+        console.error("Error cargando la red vascular:", err);
+        resolverCargaGrafo(false);
+    });
 
 // =======================================================
 // 3. GEOLOCALIZACIÓN Y SOCKETS (SOLO USUARIO ACTUAL)
 // =======================================================
-let ultimoEnvioGps = 0;
-const LIMITE_LATENCIA_MS = 2000; 
+let ultimaActualizacionEspacial = 0;
 
-if (navigator.geolocation) {
-    navigator.geolocation.watchPosition(
-        (pos) => {
-            const ahora = Date.now();
-            const { latitude, longitude } = pos.coords;
-            
-            // Actualización inmediata y fluida del marcador local sin esperar al servidor
-            if (miMarcadorLocal) miMarcadorLocal.setLatLng([latitude, longitude]);
-
-            // [NUEVO] El límite de velocidad se actualiza de inmediato en cada
-            // lectura del GPS, igual que el marcador — no se espera el throttle
-            // del socket, porque ver el km/h correcto en tiempo real importa.
-            actualizarLimiteVelocidad(latitude, longitude);
-
-            if (ahora - ultimoEnvioGps > LIMITE_LATENCIA_MS) {
-                if (typeof window.desbloquearZonaOrigen === 'function') window.desbloquearZonaOrigen(latitude, longitude);
-                socket.emit('actualizar-ubicacion', { lat: latitude, lng: longitude });
-                ultimoEnvioGps = ahora;
-            }
-        },
-        (err) => console.error("Error de GPS:", err),
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-}
-
-// El servidor solo nos devuelve nuestra propia ubicación; no llega ningún otro usuario.
-socket.on('dibujar-ubicacion', (data) => {
-    const { lat, lng } = data;
+function actualizarUbicacionLocal(lat, lng) {
     const capaDestino = (window.capas && window.capas.usuarios) ? window.capas.usuarios : window.map;
-
-    actualizarLimiteVelocidad(lat, lng) // [NUEVO] — siempre, sin depender de rutas activas
+    actualizarLimiteVelocidad(lat, lng);
 
     if (miMarcadorLocal) {
         miMarcadorLocal.setLatLng([lat, lng]);
-        if (marcador && trayectoria) {
-            trazarRutaInteligente(miMarcadorLocal.getLatLng(), marcador.getLatLng());
-            actualizarPasoActualPorPosicion(miMarcadorLocal.getLatLng()); // [NUEVO]
+        if (marcador && trayectoria && rutaActiva) {
+            recalcularRutaActiva(miMarcadorLocal.getLatLng(), marcador.getLatLng());
+            actualizarPasoActualPorPosicion(miMarcadorLocal.getLatLng());
         }
     } else {
-        // El ícono direccional está definido en mapIconos.js (window.iconos.miUbicacion).
-        // actualizarRotacionIcono() lo gira según el giroscopio para mostrar el frente real.
         const iconoUsuario = (window.iconos && window.iconos.miUbicacion)
             ? window.iconos.miUbicacion
             : new L.Icon.Default();
@@ -241,12 +250,9 @@ socket.on('dibujar-ubicacion', (data) => {
         if (marcador) window.enfocarUsuario();
     }
 
-    // Si el modo seguimiento está activo, re-centramos el mapa suavemente
-    // solo cuando el usuario se alejó lo suficiente del centro (>8m).
-    if (siguiendoUsuario && window.map) {
+    if (siguiendoUsuario) {
         const centroActual = window.map.getCenter();
-        const distCentro = window.map.distance(centroActual, [lat, lng]);
-        if (distCentro > 8) {
+        if (window.map.distance(centroActual, [lat, lng]) > 8) {
             window.map.panTo([lat, lng], { animate: true, duration: 1.5, easeLinearity: 0.25 });
         }
     }
@@ -256,31 +262,117 @@ socket.on('dibujar-ubicacion', (data) => {
         primerAjuste = false;
         siguiendoUsuario = true;
     }
-});
+}
 
-// Al reconectarse (ej. pantalla apagada), limpiamos el marcador anterior
-// para no duplicarlo con el nuevo socket.id que asigna el servidor.
-socket.on('connect', () => {
-    if (miMarcadorLocal) {
-        const capaDestino = (window.capas && window.capas.usuarios) ? window.capas.usuarios : window.map;
-        try { capaDestino.removeLayer(miMarcadorLocal); } catch (_) {}
-        miMarcadorLocal = null;
-    }
-    primerAjuste = true;
-});
+if (navigator.geolocation) {
+    navigator.geolocation.watchPosition(
+        (pos) => {
+            const ahora = Date.now();
+            const { latitude, longitude } = pos.coords;
+            actualizarUbicacionLocal(latitude, longitude);
 
-// usuario-desconectado eliminado: no hay otros usuarios que gestionar.
+            if (ahora - ultimaActualizacionEspacial > 2000) {
+                if (typeof window.desbloquearZonaOrigen === 'function') window.desbloquearZonaOrigen(latitude, longitude);
+                ultimaActualizacionEspacial = ahora;
+            }
+        },
+        (err) => console.error("Error de GPS:", err),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 1500 }
+    );
+}
 
 // =======================================================
 // 4. INTERACCIÓN Y SELECCIÓN DE DESTINOS
 // =======================================================
 let marcadorTemp = null;      
 let nombreLugarTemporal = ""; 
-let trazandoRuta = false; 
+let trazandoRuta = false;
+let opcionesRutasCalculadas = [];
+let previsualizacionesRutas = [];
+let perfilRutaActivo = null;
+let rutaActiva = null;
+let toqueMapaPendiente = null;
+
+const MODULOS_SELECCION_REQUERIDOS = ['prohibidos', 'interes', 'especiales'];
+
+function lugaresDelMapaListos() {
+    return MODULOS_SELECCION_REQUERIDOS.every(nombre => window.modulosMapaListos && window.modulosMapaListos.has(nombre));
+}
+
+function mostrarAvisoMapa(texto) {
+    let aviso = document.getElementById('avisoMapa');
+    if (!aviso) {
+        aviso = document.createElement('div');
+        aviso.id = 'avisoMapa';
+        aviso.className = 'aviso-mapa shadow';
+        document.body.appendChild(aviso);
+    }
+    aviso.textContent = texto;
+    aviso.classList.add('visible');
+    clearTimeout(mostrarAvisoMapa._timer);
+    mostrarAvisoMapa._timer = setTimeout(() => aviso.classList.remove('visible'), 1800);
+}
+
+function obtenerCentroLugar(lugar) {
+    if (lugar.centro && Number.isFinite(lugar.centro.lat) && Number.isFinite(lugar.centro.lng)) {
+        return lugar.centro;
+    }
+    if (Number.isFinite(lugar.lat) && Number.isFinite(lugar.lng)) {
+        return { lat: lugar.lat, lng: lugar.lng };
+    }
+    if (lugar.feature) {
+        const centro = turf.centerOfMass(lugar.feature);
+        return { lat: centro.geometry.coordinates[1], lng: centro.geometry.coordinates[0] };
+    }
+    return null;
+}
+
+// Resolución espacial centralizada: no depende de cuál canvas/capa terminó
+// arriba después de las peticiones asíncronas. Esto hace estable el toque en
+// polígonos, líneas y puntos aun al terminar de cargar o después de cancelar.
+function buscarLugarTocado(latlng) {
+    if (!window.SelectionPolicy) return null;
+    return window.SelectionPolicy.buscarEstructuraEnPunto(
+        window.estructurasSeleccionables || [],
+        latlng,
+        turf
+    );
+}
+
+function procesarToqueMapa(latlng) {
+    if (!lugaresDelMapaListos()) {
+        toqueMapaPendiente = latlng;
+        mostrarAvisoMapa('Terminando de cargar los lugares…');
+        return;
+    }
+
+    const lugar = buscarLugarTocado(latlng);
+    if (lugar) {
+        if (trazandoRuta || opcionesRutasCalculadas.length > 0 || trayectoria) {
+            window.cancelarRuta();
+        }
+        const centro = obtenerCentroLugar(lugar);
+        if (!centro) return;
+        window.zonaPermitidaTemporal = lugar.feature;
+        window.irHacia(centro.lat, centro.lng, lugar.nombre);
+        return;
+    }
+
+    window.zonaPermitidaTemporal = null;
+    mostrarAvisoMapa('Selecciona una estructura marcada en el mapa');
+}
+
+window.addEventListener('gps:modulo-mapa-listo', () => {
+    if (toqueMapaPendiente && lugaresDelMapaListos()) {
+        const pendiente = toqueMapaPendiente;
+        toqueMapaPendiente = null;
+        procesarToqueMapa(pendiente);
+    }
+});
 
 window.map.on('click', function(e) {
     const panel = document.getElementById('panelDestino');
-    if (!panel.classList.contains('d-none')) {
+    if (panel && !panel.classList.contains('d-none')) {
         panel.classList.add('d-none');
         if (marcadorTemp) {
             window.map.removeLayer(marcadorTemp);
@@ -288,30 +380,28 @@ window.map.on('click', function(e) {
         }
         window.moverBotonesFlotantes(false);
     }
+    procesarToqueMapa(e.latlng);
 });
 
 window.irHacia = function(lat, lng, nombreLugar) {
+    const zonaSeleccionada = window.zonaPermitidaTemporal;
+    if (!window.SelectionPolicy || !window.SelectionPolicy.esEstructura(zonaSeleccionada)) {
+        window.zonaPermitidaTemporal = null;
+        mostrarAvisoMapa('Sólo se permiten estructuras como destino');
+        return;
+    }
+    if ((trazandoRuta || opcionesRutasCalculadas.length > 0 || trayectoria) && typeof window.cancelarRuta === 'function') {
+        window.cancelarRuta();
+    }
+    window.zonaPermitidaTemporal = zonaSeleccionada;
     nombreLugarTemporal = nombreLugar; 
     procesarSeleccionTemporal(lat, lng, nombreLugarTemporal);
 };
 
 function procesarSeleccionTemporal(lat, lng, nombre) {
-    // Si el punto viene de un lugar conocido (POI, edificio, terminal, historial o
-    // resultado del buscador), zonaPermitidaTemporal ya está fijado y saltamos
-    // AMBAS validaciones: perímetro exterior y zonas restringidas internas.
-    // Solo validamos cuando el usuario toca un punto libre en el mapa.
-    if (!window.zonaPermitidaTemporal) {
-        if (window.geojsonDataPrincipalPermitida) {
-            const puntoClick = turf.point([lng, lat]);
-            const perimetro = window.geojsonDataPrincipalPermitida.features ? window.geojsonDataPrincipalPermitida.features[0] : window.geojsonDataPrincipalPermitida;
-            if (!turf.booleanPointInPolygon(puntoClick, perimetro)) {
-                return;
-            }
-        }
-
-        if (typeof window.esUbicacionValida === 'function' && !window.esUbicacionValida(lat, lng)) {
-            return;
-        }
+    if (!window.SelectionPolicy || !window.SelectionPolicy.esEstructura(window.zonaPermitidaTemporal)) {
+        mostrarAvisoMapa('Sólo se permiten estructuras como destino');
+        return;
     }
 
     if (marcadorTemp) {
@@ -331,10 +421,11 @@ window.cerrarPanelDestino = function() {
         window.map.removeLayer(marcadorTemp);
         marcadorTemp = null;
     }
+    window.zonaPermitidaTemporal = null;
     window.moverBotonesFlotantes(false);
 };
 
-window.confirmarNuevoDestino = function() {
+window.confirmarNuevoDestino = async function() {
     if (!marcadorTemp) return;
     
     document.getElementById('panelDestino').classList.add('d-none');
@@ -350,198 +441,292 @@ window.confirmarNuevoDestino = function() {
 
     if (marcador) {
         marcador.setLatLng(nuevaCoordenada);
-        marcador.bindPopup(`<strong class="text-success">${nombreFinal}</strong>`).openPopup();
+        marcador.bindPopup(`<strong class="text-success">${nombreFinal}</strong>`);
     } else {
         const capaParaDestino = (window.capas && window.capas.destinos) ? window.capas.destinos : window.map;
         marcador = L.marker(nuevaCoordenada, { icon: window.iconos.destino }).addTo(capaParaDestino);
-        marcador.bindPopup(`<strong class="text-success">${nombreFinal}</strong>`).openPopup();
-        
-        marcador.on('popupclose', function() {
-            if (!trazandoRuta && marcador) {
-                window.capas.destinos.removeLayer(marcador);
-                marcador = null;
-                if (trayectoria) { window.capas.trayectorias.removeLayer(trayectoria); trayectoria = null; }
-                ocultarPanelInstrucciones(); // [NUEVO]
-            }
-            trazandoRuta = false; 
-        });
+        marcador.bindPopup(`<strong class="text-success">${nombreFinal}</strong>`);
     }
 
-    window.solicitarRuta();
+    await window.solicitarRuta();
 };
 
-window.solicitarRuta = function() {
-    if (!miMarcadorLocal || !marcador) return;
-    trazandoRuta = true; 
-    marcador.closePopup(); 
-    trazarRutaInteligente(miMarcadorLocal.getLatLng(), marcador.getLatLng());
+window.solicitarRuta = async function() {
+    if (!marcador) return;
+    if (!miMarcadorLocal) {
+        mostrarAvisoMapa('Esperando una ubicación GPS válida…');
+        return;
+    }
+    const redDisponible = grafoRutasCargado || await promesaGrafoRutas;
+    if (!redDisponible) {
+        mostrarAvisoMapa('No fue posible cargar la red de rutas');
+        return;
+    }
+    trazandoRuta = false;
+    marcador.closePopup();
+    mostrarOpcionesRuta(miMarcadorLocal.getLatLng(), marcador.getLatLng());
     window.enfocarUsuario();
 };
 
 // =======================================================
-// 5. MOTOR VECTORIAL A* CON PUENTES INTELIGENTES
+// 5. MOTOR A* Y GENERACIÓN DE ALTERNATIVAS
 // =======================================================
+const PERFILES_RUTA = {
+    recomendada: {
+        id: 'recomendada',
+        titulo: 'Recomendada',
+        descripcion: 'Equilibrio entre distancia y vialidades principales',
+        color: '#2563eb',
+        factorComplementaria: 1.18,
+        factorRodaje: 1.10,
+        factorPesoAlto: 1.8
+    },
+    corta: {
+        id: 'corta',
+        titulo: 'Más corta',
+        descripcion: 'Prioriza la menor distancia disponible',
+        color: '#16a34a',
+        factorComplementaria: 1,
+        factorRodaje: 1,
+        factorPesoAlto: 1.15
+    },
+    principales: {
+        id: 'principales',
+        titulo: 'Vialidades principales',
+        descripcion: 'Prefiere las vialidades destacadas sin bloquear el resto',
+        color: '#f97316',
+        factorComplementaria: 1.75,
+        factorRodaje: 1.45,
+        factorPesoAlto: 2.2
+    },
+    alternativa: {
+        id: 'alternativa',
+        titulo: 'Alternativa',
+        descripcion: 'Usa un recorrido distinto cuando la red lo permite',
+        color: '#8b5cf6',
+        factorComplementaria: 1.15,
+        factorRodaje: 1.08,
+        factorPesoAlto: 1.7
+    }
+};
 
-// -------------------------------------------------------
-// Evasión dinámica de zonas de mayor afluencia (peso = 2)
-// -------------------------------------------------------
-// UMBRAL_CERCANIA_ZONA_PESO_M: si el punto de partida del usuario está a
-// menos de esta distancia (en metros) de un tramo de peso alto, se asume
-// que el usuario YA está prácticamente sobre/dentro de esa zona y por lo
-// tanto sí se le permite cruzarla sin penalización (sería absurdo
-// mandarlo a dar la vuelta si ya está ahí).
-//
-// FACTOR_EVASION_FUERTE: multiplicador aplicado al costo de un tramo de
-// peso alto cuando el usuario NO está cerca (según el umbral de arriba).
-// Es intencionalmente grande para que el A* prefiera una ruta bastante
-// más larga con tal de no cruzar esa zona, pero sigue siendo un número
-// finito (a diferencia del bloqueo de pistas de vuelo, que es 9999) para
-// que, si esa fuera la única forma de llegar, la ruta igual se calcule.
-const UMBRAL_CERCANIA_ZONA_PESO_M = 600;
-const FACTOR_EVASION_FUERTE = 20;
+function aristaPermitida(edge, sourceId, cacheNodos, cacheAristas) {
+    const clave = `${sourceId}>${edge.target}`;
+    if (cacheAristas.has(clave)) return cacheAristas.get(clave);
 
-// -------------------------------------------------------
-// [NUEVO] Motor A* reutilizable, extraído para poder ejecutarlo dos
-// veces: primero restringido SOLO a vialidades destacadas (obligatorio),
-// y si eso no logra conectar origen y destino, sin restricción (usando
-// el resto de la red como respaldo).
-// -------------------------------------------------------
-function ejecutarBusquedaAEstrella(ptInicio, startId, endId, soloDestacadas) {
-    const openHeap = new MinHeap();
-    const gScores = new Map();
-    const parents = new Map();
+    const destino = window.RouteEngine.coordenadasNodo(edge.target);
+    let permitida = true;
 
-    gScores.set(startId, 0);
-    openHeap.push(startId, 0);
+    if (!cacheNodos.has(edge.target)) {
+        cacheNodos.set(
+            edge.target,
+            typeof window.esUbicacionValida !== 'function' || window.esUbicacionValida(destino.lat, destino.lng)
+        );
+    }
+    permitida = cacheNodos.get(edge.target);
 
-    let caminoEncontrado = false;
-    let mejorNodoAlcanzado = startId;
-    let distanciaMinimaAlFinal = Infinity;
-
-    while (openHeap.length > 0) {
-        const currId = openHeap.pop();
-        if (currId === endId) { caminoEncontrado = true; break; }
-
-        const [cLng, cLat] = currId.split(',').map(Number);
-        const [fLng, fLat] = endId.split(',').map(Number);
-        const distAlObjetivo = Math.hypot(cLng - fLng, cLat - fLat);
-
-        if (distAlObjetivo < distanciaMinimaAlFinal) {
-            distanciaMinimaAlFinal = distAlObjetivo;
-            mejorNodoAlcanzado = currId;
-        }
-
-        const currG = gScores.get(currId);
-        const vecinos = grafoRutas.get(currId) || [];
-
-        for (let v of vecinos) {
-            // [NUEVO] Fase restringida: se descarta por completo cualquier
-            // tramo que NO sea una vialidad destacada. Esto es lo que
-            // garantiza el "obligatorio, sin excepción" (no es una simple
-            // penalización, es un bloqueo absoluto en esta fase).
-            if (soloDestacadas && !v.esDestacada) continue;
-
-            let penalizacion = 1.0;
-            if (window.evitarPistasVuelo && typeof window.esZonaPuente === 'function') {
-                const [lng, lat] = v.target.split(',').map(Number);
-                if (!window.esZonaPuente(lat, lng) && typeof window.esUbicacionValida === 'function' && !window.esUbicacionValida(lat, lng)) {
-                    continue; // Se ignora esta arista, no se relaja ni se agrega al heap
-                }
-            }
-
-            // --- [CORREGIDO] Evasión estricta de vías complementarias ---
-            let factorPeso = 1.0;
-            
-            if (!v.esDestacada) {
-                // [CLAVE] Castigo masivo (x1000). Esto obliga matemáticamente al GPS a 
-                // huir hacia la red destacada inmediatamente y no soltarla nunca, 
-                // usando la vía complementaria SOLO en la última milla si el origen/destino está aislado.
-                factorPeso = 1000;
-            } else if (v.peso && v.peso > 1) {
-                // Mantenemos tu lógica original intacta para las zonas de afluencia
-                const [lngV, latV] = v.target.split(',').map(Number);
-                const distUsuarioM = turf.distance(ptInicio, turf.point([lngV, latV]), { units: 'meters' });
-                factorPeso = (distUsuarioM > UMBRAL_CERCANIA_ZONA_PESO_M)
-                    ? v.peso * FACTOR_EVASION_FUERTE
-                    : 1.0;
-            }
-
-            const tentativeG = currG + (v.cost * factorPeso);
-            const neighborG = gScores.has(v.target) ? gScores.get(v.target) : Infinity;
-
-            if (tentativeG < neighborG) {
-                parents.set(v.target, currId);
-                gScores.set(v.target, tentativeG);
-
-                const pC = v.target.split(',').map(Number);
-                const pF = endId.split(',').map(Number);
-                const h = turf.distance(turf.point(pC), turf.point(pF));
-
-                openHeap.push(v.target, tentativeG + h);
-            }
-        }
+    if (permitida && window.evitarPistasVuelo && typeof window.segmentoCruzaPista === 'function') {
+        const origen = window.RouteEngine.coordenadasNodo(sourceId);
+        permitida = !window.segmentoCruzaPista(origen, destino);
     }
 
-    return { caminoEncontrado, mejorNodoAlcanzado, parents };
+    cacheAristas.set(clave, permitida);
+    return permitida;
 }
 
-function trazarRutaInteligente(inicioGPS, finGPS) {
-    if (!grafoRutas.size || !nodosCaminos) {
-        dibujarLineaEnMapa([[inicioGPS.lat, inicioGPS.lng], [finGPS.lat, finGPS.lng]]);
-        return;
+function convertirResultadoRuta(resultado, inicioGPS, finGPS, perfil, penalizadas) {
+    if (!resultado) return null;
+
+    const pathCoords = [
+        { lat: inicioGPS.lat, lng: inicioGPS.lng },
+        ...resultado.ids.map(id => window.RouteEngine.coordenadasNodo(id)),
+        { lat: finGPS.lat, lng: finGPS.lng }
+    ].filter((punto, index, lista) => {
+        if (index === 0) return true;
+        const anterior = lista[index - 1];
+        return punto.lat !== anterior.lat || punto.lng !== anterior.lng;
+    });
+
+    let distanciaRedKm = 0;
+    let distanciaDestacadaKm = 0;
+    let distanciaRodajeKm = 0;
+    for (const edge of resultado.edges) {
+        distanciaRedKm += edge.cost;
+        if (edge.esDestacada) distanciaDestacadaKm += edge.cost;
+        if (edge.esRodaje) distanciaRodajeKm += edge.cost;
     }
+
+    const distanciaConectoresKm = turf.distance(
+        turf.point([inicioGPS.lng, inicioGPS.lat]),
+        turf.point([pathCoords[1].lng, pathCoords[1].lat])
+    ) + turf.distance(
+        turf.point([pathCoords[pathCoords.length - 2].lng, pathCoords[pathCoords.length - 2].lat]),
+        turf.point([finGPS.lng, finGPS.lat])
+    );
+    const distanciaKm = distanciaRedKm + distanciaConectoresKm;
+    const minutos = Math.max(1, Math.round((distanciaKm / 20) * 60));
+    const porcentajeDestacada = distanciaRedKm > 0 ? Math.round((distanciaDestacadaKm / distanciaRedKm) * 100) : 0;
+
+    let resumenRed = `${porcentajeDestacada}% por vialidades destacadas`;
+    if (distanciaRodajeKm > 0.02) resumenRed += ' · incluye rodajes';
+
+    return {
+        id: perfil.id,
+        perfil,
+        penalizadas: penalizadas || new Set(),
+        resultado,
+        pathCoords,
+        distanciaMetros: Math.round(distanciaKm * 1000),
+        minutos,
+        resumenRed
+    };
+}
+
+function calcularRutaConPerfil(inicioGPS, finGPS, perfil, penalizadas = new Set()) {
+    if (!grafoRutas.size || !nodosCaminos || !window.RouteEngine) return null;
 
     const ptInicio = turf.point([inicioGPS.lng, inicioGPS.lat]);
     const ptFin = turf.point([finGPS.lng, finGPS.lat]);
+    const startId = turf.nearestPoint(ptInicio, nodosCaminos).properties.id;
+    const endId = turf.nearestPoint(ptFin, nodosCaminos).properties.id;
+    const cacheNodos = new Map();
+    const cacheAristas = new Map();
 
-    const nodoInicio = turf.nearestPoint(ptInicio, nodosCaminos);
-    const nodoFin = turf.nearestPoint(ptFin, nodosCaminos);
+    const resultado = window.RouteEngine.buscarRuta(grafoRutas, startId, endId, {
+        edgeAllowed: (edge, sourceId) => aristaPermitida(edge, sourceId, cacheNodos, cacheAristas),
+        edgeCost: (edge, sourceId) => {
+            let factor = 1;
+            if (!edge.esDestacada) factor *= perfil.factorComplementaria;
+            if (edge.esRodaje) factor *= perfil.factorRodaje;
+            if (edge.peso > 1) factor *= perfil.factorPesoAlto;
+            if (penalizadas.has(window.RouteEngine.claveArista(sourceId, edge.target))) factor *= 2.4;
+            return edge.cost * factor;
+        }
+    });
 
-    const startId = nodoInicio.properties.id;
-    const endId = nodoFin.properties.id;
+    return convertirResultadoRuta(resultado, inicioGPS, finGPS, perfil, penalizadas);
+}
 
-    // [NUEVO] Fase 1: SIEMPRE se intenta primero una ruta usando
-    // EXCLUSIVAMENTE vialidades destacadas.
-    let resultado = ejecutarBusquedaAEstrella(ptInicio, startId, endId, true);
-    let usoRedCompleta = false;
+function esOpcionDistinta(opcion, existentes) {
+    return existentes.every(existente => {
+        return window.RouteEngine.similitudAristas(opcion.resultado, existente.resultado) < 0.82;
+    });
+}
 
-    // [NUEVO] Fase 2: solo si la red de vialidades destacadas está
-    // "cortada" (no conecta origen con destino), se permite usar el
-    // resto de la red vial como respaldo.
-    if (!resultado.caminoEncontrado) {
-        resultado = ejecutarBusquedaAEstrella(ptInicio, startId, endId, false);
-        usoRedCompleta = true;
+function calcularOpcionesRuta(inicioGPS, finGPS) {
+    const opciones = [];
+    const recomendada = calcularRutaConPerfil(inicioGPS, finGPS, PERFILES_RUTA.recomendada);
+    if (recomendada) opciones.push(recomendada);
+
+    for (const perfil of [PERFILES_RUTA.corta, PERFILES_RUTA.principales]) {
+        const opcion = calcularRutaConPerfil(inicioGPS, finGPS, perfil);
+        if (opcion && esOpcionDistinta(opcion, opciones)) opciones.push(opcion);
     }
 
-    const { caminoEncontrado, mejorNodoAlcanzado, parents } = resultado;
-
-    const pathCoords = [];
-    let curr = caminoEncontrado ? endId : mejorNodoAlcanzado;
-    
-    while (curr) {
-        const [lng, lat] = curr.split(',').map(Number);
-        pathCoords.push({lat, lng});
-        curr = parents.get(curr);
-    }
-    pathCoords.reverse();
-    
-    pathCoords.unshift(inicioGPS);
-    
-    if (!caminoEncontrado) {
-        const [endLng, endLat] = endId.split(',').map(Number);
-        pathCoords.push({lat: endLat, lng: endLng});
-        console.warn("Se utilizó un puente de aproximación inteligente para sortear una zona desconectada.");
-    }
-    
-    pathCoords.push(finGPS);
-
-    if (usoRedCompleta) {
-        console.warn("La red de vialidades destacadas está cortada en este tramo; se usó el resto de la red vial como respaldo.");
+    if (recomendada && opciones.length < 3) {
+        const penalizadas = window.RouteEngine.conjuntoAristas(recomendada.resultado);
+        const alternativa = calcularRutaConPerfil(inicioGPS, finGPS, PERFILES_RUTA.alternativa, penalizadas);
+        if (alternativa && esOpcionDistinta(alternativa, opciones)) opciones.push(alternativa);
     }
 
-    dibujarLineaEnMapa(pathCoords.map(pt => [pt.lat, pt.lng]));
-    // [NUEVO] Generamos instrucciones y flechas para esta ruta
-    pasosRuta = generarInstrucciones(pathCoords);
+    return opciones.slice(0, 3);
+}
+
+function removerCapaRuta(layer) {
+    if (!layer) return;
+    const grupo = window.capas && window.capas.trayectorias;
+    if (grupo && grupo.hasLayer(layer)) grupo.removeLayer(layer);
+    else if (window.map && window.map.hasLayer(layer)) window.map.removeLayer(layer);
+}
+
+function limpiarPrevisualizacionesRutas() {
+    for (const layer of previsualizacionesRutas) removerCapaRuta(layer);
+    previsualizacionesRutas = [];
+}
+
+function mostrarOpcionesRuta(inicioGPS, finGPS) {
+    limpiarPrevisualizacionesRutas();
+    opcionesRutasCalculadas = calcularOpcionesRuta(inicioGPS, finGPS);
+
+    if (opcionesRutasCalculadas.length === 0) {
+        mostrarAvisoMapa('No hay una ruta válida con las restricciones actuales');
+        return;
+    }
+
+    const capa = (window.capas && window.capas.trayectorias) ? window.capas.trayectorias : window.map;
+    for (const opcion of opcionesRutasCalculadas) {
+        const preview = L.polyline(opcion.pathCoords.map(p => [p.lat, p.lng]), {
+            color: opcion.perfil.color,
+            weight: 6,
+            opacity: 0.62,
+            dashArray: '8, 10',
+            lineCap: 'round',
+            interactive: false,
+            className: 'ruta-vista-previa'
+        }).addTo(capa);
+        previsualizacionesRutas.push(preview);
+    }
+
+    const panel = document.getElementById('panelAlternativasRuta');
+    const resumen = document.getElementById('resumenAlternativasRuta');
+    const lista = document.getElementById('listaAlternativasRuta');
+    if (!panel || !resumen || !lista) return;
+
+    resumen.textContent = opcionesRutasCalculadas.length === 1
+        ? 'Sólo existe un recorrido válido para este destino'
+        : `${opcionesRutasCalculadas.length} recorridos diferentes disponibles`;
+    lista.innerHTML = opcionesRutasCalculadas.map(opcion => `
+        <button type="button" class="alternativa-ruta" onclick="window.seleccionarRuta('${opcion.id}')">
+            <span class="alternativa-ruta-color" style="background:${opcion.perfil.color}"></span>
+            <span>
+                <span class="alternativa-ruta-titulo">${opcion.perfil.titulo}</span>
+                <span class="alternativa-ruta-detalle">${formatearDistancia(opcion.distanciaMetros)} · ${opcion.minutos} min aprox.</span>
+                <span class="alternativa-ruta-red">${opcion.resumenRed}</span>
+            </span>
+            <span class="alternativa-ruta-accion">Elegir</span>
+        </button>
+    `).join('');
+
+    const searchBox = document.querySelector('.search-container');
+    if (searchBox) searchBox.classList.add('d-none');
+    panel.style.removeProperty('display');
+    panel.classList.remove('d-none');
+    window.moverBotonesFlotantes(true, 'panelAlternativasRuta');
+}
+
+function formatearDistancia(metros) {
+    return metros >= 1000 ? `${(metros / 1000).toFixed(1)} km` : `${metros} m`;
+}
+
+window.seleccionarRuta = function(id) {
+    const opcion = opcionesRutasCalculadas.find(item => item.id === id);
+    if (!opcion) return;
+
+    limpiarPrevisualizacionesRutas();
+    const panel = document.getElementById('panelAlternativasRuta');
+    if (panel) panel.classList.add('d-none');
+
+    perfilRutaActivo = opcion.perfil;
+    rutaActiva = opcion;
+    rutaActiva.ultimaPosicionRecalculo = miMarcadorLocal ? miMarcadorLocal.getLatLng() : null;
+    trazandoRuta = true;
+    dibujarLineaEnMapa(opcion.pathCoords.map(pt => [pt.lat, pt.lng]));
+    pasosRuta = generarInstrucciones(opcion.pathCoords);
+    pasoActualIndex = 0;
+    renderizarPanelInstrucciones();
+};
+
+function recalcularRutaActiva(inicioGPS, finGPS, forzar = false) {
+    if (!rutaActiva || !perfilRutaActivo) return;
+    const ultima = rutaActiva.ultimaPosicionRecalculo;
+    if (!forzar && ultima && window.map.distance(ultima, inicioGPS) < 25) return;
+
+    const actualizada = calcularRutaConPerfil(inicioGPS, finGPS, perfilRutaActivo, rutaActiva.penalizadas);
+    if (!actualizada) return;
+    actualizada.ultimaPosicionRecalculo = inicioGPS;
+    rutaActiva = actualizada;
+    dibujarLineaEnMapa(actualizada.pathCoords.map(pt => [pt.lat, pt.lng]));
+    pasosRuta = generarInstrucciones(actualizada.pathCoords);
     pasoActualIndex = 0;
     renderizarPanelInstrucciones();
 }
@@ -562,7 +747,9 @@ function dibujarLineaEnMapa(puntos) {
             opacity: 0.8,
             dashArray: '10, 15',
             lineCap: 'round',
-            smoothFactor: 0 
+            smoothFactor: 0,
+            interactive: false,
+            className: 'ruta-navegacion'
         }).addTo(capaParaTrayectoria); 
     }
 }
@@ -589,7 +776,10 @@ if (chkEvitarPistas) {
                 color: window.evitarPistasVuelo ? "#dc3545" : "#6c757d"
             });
         }
-        if (miMarcadorLocal && marcador) trazarRutaInteligente(miMarcadorLocal.getLatLng(), marcador.getLatLng());
+        if (miMarcadorLocal && marcador) {
+            if (rutaActiva) recalcularRutaActiva(miMarcadorLocal.getLatLng(), marcador.getLatLng(), true);
+            else mostrarOpcionesRuta(miMarcadorLocal.getLatLng(), marcador.getLatLng());
+        }
     });
 }
 
@@ -864,28 +1054,56 @@ window.cancelarRuta = function(e) {
         e.stopPropagation();
     }
 
-    // 2. Limpieza de capas con prevención de errores (evita que un fallo detenga la ejecución)
+    // 2. Limpieza completa de capas y estados de selección.
     try {
-        if (trayectoria && window.map) {
-            window.map.removeLayer(trayectoria);
+        limpiarPrevisualizacionesRutas();
+        if (trayectoria) {
+            removerCapaRuta(trayectoria);
             trayectoria = null;
         }
-        if (marcador && window.map) {
-            window.map.removeLayer(marcador);
+        if (marcador) {
+            const grupoDestinos = window.capas && window.capas.destinos;
+            if (grupoDestinos && grupoDestinos.hasLayer(marcador)) grupoDestinos.removeLayer(marcador);
+            else if (window.map && window.map.hasLayer(marcador)) window.map.removeLayer(marcador);
             marcador = null;
+        }
+        if (marcadorTemp) {
+            if (window.map && window.map.hasLayer(marcadorTemp)) window.map.removeLayer(marcadorTemp);
+            marcadorTemp = null;
         }
     } catch (error) {
         console.warn("Advertencia al limpiar capas del mapa:", error);
     }
 
     trazandoRuta = false;
+    perfilRutaActivo = null;
+    rutaActiva = null;
+    opcionesRutasCalculadas = [];
+    toqueMapaPendiente = null;
+    window.zonaPermitidaTemporal = null;
+    nombreLugarTemporal = '';
     
-    // 3. Orden forzada para apagar el panel
+    // 3. Apagar ambos paneles sin dejar una caja invisible sobre el mapa.
     ocultarPanelInstrucciones();
+    const panelAlternativas = document.getElementById('panelAlternativasRuta');
+    if (panelAlternativas) {
+        panelAlternativas.classList.add('d-none');
+        panelAlternativas.style.removeProperty('display');
+    }
+    const panelDestino = document.getElementById('panelDestino');
+    if (panelDestino) panelDestino.classList.add('d-none');
     
     // 4. Regresamos la barra del buscador a la pantalla
     const searchBox = document.querySelector('.search-container');
     if (searchBox) searchBox.classList.remove('d-none');
+
+    if (window.map) {
+        window.map.closePopup();
+        if (window.map.dragging) window.map.dragging.enable();
+        if (window.map.touchZoom) window.map.touchZoom.enable();
+        if (window.map.doubleClickZoom) window.map.doubleClickZoom.enable();
+        requestAnimationFrame(() => window.map.invalidateSize({ pan: false }));
+    }
 };
 
 // -------------------------------------------------------
@@ -920,8 +1138,8 @@ function renderizarPanelInstrucciones() {
         ${siguiente ? `<div class="text-muted small mt-3 pt-2 border-top"><i class="bi bi-arrow-return-right me-1"></i> Luego: ${siguiente.texto}</div>` : ''}
     `;
     
+    panel.style.removeProperty('display');
     panel.classList.remove('d-none');
-    panel.style.display = ''; 
     
     // [CORRECCIÓN CRÍTICA] Se envía el ID correcto: 'panelNavegacion'
     window.moverBotonesFlotantes(true, 'panelNavegacion');

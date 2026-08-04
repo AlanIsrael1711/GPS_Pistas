@@ -3,7 +3,6 @@
 // =======================================================
 
 window.viasNombradas = window.viasNombradas || [];
-window.directorioLugares = window.directorioLugares || [];
 
 fetch('/resources/vialidades_final_completo.geojson')
     .then(r => r.json())
@@ -20,20 +19,6 @@ fetch('/resources/vialidades_final_completo.geojson')
 
             if (nombreLargo) {
                 window.viasNombradas.push({ linea: feature, nombre: nombreLargo });
-            }
-
-            if (nombreLargo) {
-                const yaExiste = window.directorioLugares.some(l => l.nombre === nombreLargo);
-                if (!yaExiste) {
-                    const centroPunto = turf.along(feature, turf.length(feature, { units: 'meters' }) / 2, { units: 'meters' });
-                    const [lng, lat] = centroPunto.geometry.coordinates;
-                    window.directorioLugares.push({
-                        nombre: nombreLargo,
-                        alias: props.ref || null, 
-                        centro: { lat, lng },
-                        feature: feature
-                    });
-                }
             }
 
             if (!textoEtiqueta) return; 

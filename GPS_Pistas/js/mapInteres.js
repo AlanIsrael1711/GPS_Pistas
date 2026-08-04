@@ -10,6 +10,16 @@ const archivosInteres = [
 ];
 
 window.zonaPermitidaTemporal = null; 
+window.estructurasSeleccionables = window.estructurasSeleccionables || [];
+
+function obtenerPuntoInteriorEstructura(feature, layer) {
+    try {
+        const punto = turf.pointOnFeature(feature);
+        return L.latLng(punto.geometry.coordinates[1], punto.geometry.coordinates[0]);
+    } catch (_) {
+        return layer.getBounds().getCenter();
+    }
+}
 
 Promise.all(
     // [MODIFICADO] Ahora devolvemos un objeto con la URL y los datos para poder identificarlos
@@ -42,6 +52,10 @@ Promise.all(
             onEachFeature: function(feature, layer) {
                 const nombreLugar = feature.properties.nombre || feature.properties.name || '';
 
+                if (window.SelectionPolicy) {
+                    window.SelectionPolicy.marcarEstructura(feature);
+                }
+
                 window.poligonosInteresBloqueo = window.poligonosInteresBloqueo || [];
                 feature.properties = feature.properties || {};
                 feature.properties.bbox = turf.bbox(feature); 
@@ -49,10 +63,11 @@ Promise.all(
 
                 if (nombreLugar) {
                     const bounds = layer.getBounds();
-                    const centro = bounds.getCenter();
+                    const centroEtiqueta = bounds.getCenter();
+                    const centro = obtenerPuntoInteriorEstructura(feature, layer);
 
                     // Creamos el marcador con icono vacío primero
-                    const marcador = L.marker(centro, {
+                    const marcador = L.marker(centroEtiqueta, {
                         icon: L.divIcon({ className: 'etiqueta-pista tipo-edificio', html: nombreLugar, iconSize: [0,0] }),
                         interactive: false,
                         keyboard: false
@@ -87,13 +102,15 @@ Promise.all(
                     window.directorioLugares = window.directorioLugares || [];
                     const yaExiste = window.directorioLugares.some(l => l.nombre === nombreLugar);
                     if (!yaExiste) {
-                        window.directorioLugares.push({ nombre: nombreLugar, centro, feature });
+                        const entrada = { nombre: nombreLugar, centro, feature, categoria: 'estructura' };
+                        window.directorioLugares.push(entrada);
+                        window.estructurasSeleccionables.push(entrada);
                     }
                 }
 
                 layer.on('click', function(e) {
                     L.DomEvent.stopPropagation(e); 
-                    const centro = layer.getBounds().getCenter();
+                    const centro = obtenerPuntoInteriorEstructura(feature, layer);
                     window.zonaPermitidaTemporal = feature;
                     if (window.irHacia) {
                         window.irHacia(centro.lat, centro.lng, nombreLugar || 'Edificio-Hangar-Estructura');
@@ -103,12 +120,11 @@ Promise.all(
         }).addTo(capaDestino);
     });
 
-    if (window.map) {
-        window.map.on('click', function() {
-            window.zonaPermitidaTemporal = null;
-        });
-    }
-
     console.log(`${archivosInteres.length} categorías de estructuras cargadas.`);
 
-}).catch(err => console.error("Error crítico cargando edificios:", err));
+}).catch(err => console.error("Error crítico cargando edificios:", err))
+  .finally(() => {
+      if (typeof window.notificarModuloMapaListo === 'function') {
+          window.notificarModuloMapaListo('interes');
+      }
+  });

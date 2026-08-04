@@ -186,6 +186,7 @@ Promise.all([
  
     if (dataProhibidas) {
         L.geoJSON(dataProhibidas, {
+            interactive: false,
             // [MODIFICADO] 1. Cambiamos el estilo fijo por una función condicional
             style: function(feature) {
                 let opciones = { color: "#28a745", weight: 1, fillColor: "#8d8b55", fillOpacity: 0.5 };
@@ -207,29 +208,7 @@ Promise.all([
                 const props = feature.properties;
                 const nombreLugar = props.nombre || props.name || props.Name || props.NAME || '';
 
-                if (nombreLugar) {
-                    window.directorioLugares.push({
-                        nombre: nombreLugar,
-                        centro: layer.getBounds().getCenter(),
-                        feature: feature
-                    });
-                    crearEtiquetaEdificio(nombreLugar, layer, capaParaZonas);
-                }
-
-                // [MODIFICADO] 2. Escudo protector: Si es área verde, cancelamos la asignación del clic
-                if (!nombreLugar || nombreLugar.toLowerCase().includes('verde')) {
-                    return; // Terminamos aquí, el polígono se dibuja pero no hará nada al tocarlo
-                }
-
-                // Este evento de clic ahora SOLO se le aplicará a los lugares prohibidos que SÍ tienen nombre
-                layer.on('click', function(e) {
-                    L.DomEvent.stopPropagation(e); 
-                    const centro = layer.getBounds().getCenter();
-                    window.zonaPermitidaTemporal = feature;
-                    if (window.irHacia) {
-                        window.irHacia(centro.lat, centro.lng, nombreLugar);
-                    }
-                });
+                if (nombreLugar) crearEtiquetaEdificio(nombreLugar, layer, capaParaZonas);
             }
         }).addTo(capaParaZonas); 
     }
@@ -294,13 +273,12 @@ Promise.all([
         }).addTo(capaParaZonas);
     }
  
-    if (window.map) {
-        window.map.on('click', function() {
-            window.zonaPermitidaTemporal = null;
-        });
-    }
- 
-}).catch(err => console.error("Error cargando archivos GeoJSON:", err));
+}).catch(err => console.error("Error cargando archivos GeoJSON:", err))
+  .finally(() => {
+      if (typeof window.notificarModuloMapaListo === 'function') {
+          window.notificarModuloMapaListo('prohibidos');
+      }
+  });
 
 // -------------------------------------------------------
 // Exponemos los polígonos de pista para validar SEGMENTOS

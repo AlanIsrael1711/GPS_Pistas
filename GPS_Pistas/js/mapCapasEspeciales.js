@@ -102,29 +102,6 @@ function crearEtiquetaSobrePoligono(layer, grupoDestino, html, claseIcono, color
 }
 
 // -------------------------------------------------------
-// 3. Registro en el buscador (evitando duplicados por nombre)
-// -------------------------------------------------------
-window.directorioLugares = window.directorioLugares || [];
-
-function registrarEnBuscador(nombre, centro, feature) {
-    if (!nombre) return;
-    const yaExiste = window.directorioLugares.some(l => l.nombre === nombre);
-    if (!yaExiste) {
-        window.directorioLugares.push({ nombre, centro, feature });
-    }
-}
-
-// Click en el mapa -> mismo comportamiento que edificios/rodajes: fija la
-// zona temporal permitida y traza ruta hacia el centro de la forma.
-function hacerClickeable(layer, nombre, centro) {
-    layer.on('click', function(e) {
-        L.DomEvent.stopPropagation(e);
-        window.zonaPermitidaTemporal = layer.feature || true;
-        if (window.irHacia) window.irHacia(centro.lat, centro.lng, nombre);
-    });
-}
-
-// -------------------------------------------------------
 // 4. GRUPOS DE CAPAS (uno por dataset, para el toggle de filtros)
 // -------------------------------------------------------
 window.capasEspeciales = {
@@ -157,8 +134,7 @@ Promise.all([
                     // Creamos la etiqueta visual en el mapa usando el mismo estilo de peligro
                     crearEtiquetaSobrePoligono(layer, window.capasEspeciales.zonasHS, nombre, 'etiqueta-zona-peligro');
                     
-                    // NOTA: Omitimos intencionalmente la función registrarEnBuscador() y hacerClickeable() 
-                    // para que los polígonos sean puramente visuales y no aparezcan en el autocompletado.
+                    // Es puramente visual: no es una estructura seleccionable.
                 }
             }
         }).eachLayer(l => window.capasEspeciales.zonasHS.addLayer(l));
@@ -218,13 +194,6 @@ Promise.all([
                     window.viasConLimite.push({ linea: feature, maxspeed: velocidadNum });
                 }
 
-                // Registro en buscador (una sola entrada por nombre, aunque el
-                // trazo esté partido en varios segmentos)
-                const centroPunto = turf.along(feature, turf.length(feature, { units: 'meters' }) / 2, { units: 'meters' });
-                const [lng, lat] = centroPunto.geometry.coordinates;
-                registrarEnBuscador(nombre, { lat, lng }, feature);
-                hacerClickeable(linea, nombre, { lat, lng });
-
                 // [MODIFICADO] Una sola etiqueta por nombre (agrupando los
                 // segmentos que compartan nombre, ej. las 14 partes de
                 // "VIALIDAD EXTERNA"), que sigue la porción visible en pantalla.
@@ -245,8 +214,6 @@ Promise.all([
                 if (nombre) {
                     const centro = layer.getBounds().getCenter();
                     crearEtiquetaSobrePoligono(layer, window.capasEspeciales.plataformas, nombre, 'etiqueta-plataforma');
-                    registrarEnBuscador(nombre, centro, feature);
-                    hacerClickeable(layer, nombre, centro);
                 }
             }
         }).eachLayer(l => window.capasEspeciales.plataformas.addLayer(l));
@@ -262,8 +229,6 @@ Promise.all([
                 if (nombre) {
                     const centro = layer.getBounds().getCenter();
                     crearEtiquetaSobrePoligono(layer, window.capasEspeciales.posiciones, nombre, 'etiqueta-posicion');
-                    registrarEnBuscador(nombre, centro, feature);
-                    hacerClickeable(layer, nombre, centro);
                 }
             }
         }).eachLayer(l => window.capasEspeciales.posiciones.addLayer(l));
@@ -279,7 +244,12 @@ Promise.all([
 
     console.log("Capas especiales (zonas de peligro, vialidades destacadas, plataformas, posiciones) cargadas.");
 
-}).catch(err => console.error("Error cargando capas especiales:", err));
+}).catch(err => console.error("Error cargando capas especiales:", err))
+  .finally(() => {
+      if (typeof window.notificarModuloMapaListo === 'function') {
+          window.notificarModuloMapaListo('especiales');
+      }
+  });
 
 // -------------------------------------------------------
 // 6. FILTROS (checkboxes del panel de control)
