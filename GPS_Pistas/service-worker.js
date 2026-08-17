@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'gps-pistas-v3';
+const VERSION = 'gps-pistas-v4-ruta-persistente';
 const CACHE_APP = `${VERSION}-app`;
 const CACHE_TILES = `${VERSION}-tiles`;
 const MAX_TILES = 120;
@@ -87,6 +87,20 @@ async function desdeCacheConActualizacion(request) {
     return respuesta;
 }
 
+// main.js contiene la lógica de navegación. Cuando hay red se solicita la
+// versión actual para no seguir ejecutando una copia antigua del service
+// worker; sin conexión se conserva el respaldo local.
+async function desdeRedConRespaldo(request) {
+    const cache = await caches.open(CACHE_APP);
+    try {
+        const respuesta = await fetch(request, { cache: 'no-cache' });
+        if (respuesta.ok) await cache.put(request, respuesta.clone());
+        return respuesta;
+    } catch (_) {
+        return (await cache.match(request, { ignoreSearch: true })) || Response.error();
+    }
+}
+
 async function navegacion(request) {
     try {
         const respuesta = await fetch(request);
@@ -124,6 +138,10 @@ self.addEventListener('fetch', event => {
     }
     if (url.pathname.startsWith('/api/')) return;
     if (url.pathname.startsWith('/socket.io/') && url.pathname !== '/socket.io/socket.io.js') return;
+    if (url.pathname === '/js/main.js') {
+        event.respondWith(desdeRedConRespaldo(request));
+        return;
+    }
     if (url.hostname.endsWith('basemaps.cartocdn.com')) {
         event.respondWith(tesela(request));
         return;
