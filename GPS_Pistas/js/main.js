@@ -292,6 +292,7 @@ let previsualizacionesRutas = [];
 let perfilRutaActivo = null;
 let rutaActiva = null;
 let toqueMapaPendiente = null;
+let inspeccionandoDestinoTemporal = false;
 
 const MODULOS_SELECCION_REQUERIDOS = ['prohibidos', 'interes', 'especiales'];
 
@@ -348,9 +349,6 @@ function procesarToqueMapa(latlng) {
 
     const lugar = buscarLugarTocado(latlng);
     if (lugar) {
-        if (trazandoRuta || opcionesRutasCalculadas.length > 0 || trayectoria) {
-            window.cancelarRuta();
-        }
         const centro = obtenerCentroLugar(lugar);
         if (!centro) return;
         window.zonaPermitidaTemporal = lugar.feature;
@@ -372,14 +370,11 @@ window.addEventListener('gps:modulo-mapa-listo', () => {
 
 window.map.on('click', function(e) {
     const panel = document.getElementById('panelDestino');
-    if (panel && !panel.classList.contains('d-none')) {
-        panel.classList.add('d-none');
-        if (marcadorTemp) {
-            window.map.removeLayer(marcadorTemp);
-            marcadorTemp = null;
-        }
-        window.moverBotonesFlotantes(false);
+
+    if(panel && !panel.classList.contains(d-none)) {
+        window.cerrarPanelDestino();
     }
+
     procesarToqueMapa(e.latlng);
 });
 
@@ -390,9 +385,6 @@ window.irHacia = function(lat, lng, nombreLugar) {
         mostrarAvisoMapa('Sólo se permiten estructuras como destino');
         return;
     }
-    if ((trazandoRuta || opcionesRutasCalculadas.length > 0 || trayectoria) && typeof window.cancelarRuta === 'function') {
-        window.cancelarRuta();
-    }
     window.zonaPermitidaTemporal = zonaSeleccionada;
     nombreLugarTemporal = nombreLugar; 
     procesarSeleccionTemporal(lat, lng, nombreLugarTemporal);
@@ -402,6 +394,13 @@ function procesarSeleccionTemporal(lat, lng, nombre) {
     if (!window.SelectionPolicy || !window.SelectionPolicy.esEstructura(window.zonaPermitidaTemporal)) {
         mostrarAvisoMapa('Sólo se permiten estructuras como destino');
         return;
+    }
+
+    inspeccionandoDestinoTemporal = true;
+
+    const panelNavegacion = document.getElementById('panelNavegacion');
+    if(panelNavegacion){
+        panelNavegacion.classList.add('d-none');
     }
 
     if (marcadorTemp) {
@@ -416,36 +415,70 @@ function procesarSeleccionTemporal(lat, lng, nombre) {
 }
 
 window.cerrarPanelDestino = function() {
+    inspeccionandoDestinoTemporal = false;
+
     document.getElementById('panelDestino').classList.add('d-none');
+
     if (marcadorTemp) {
         window.map.removeLayer(marcadorTemp);
         marcadorTemp = null;
     }
+
     window.zonaPermitidaTemporal = null;
-    window.moverBotonesFlotantes(false);
+
+    if(trazandoRuta && rutaActiva && pasosRuta.length > 0){
+        renderizarPanelInstrucciones();
+    } else {
+        window.moverBotonesFlotantes(false);
+    }
 };
 
 window.confirmarNuevoDestino = async function() {
-    if (!marcadorTemp) return;
-    
-    document.getElementById('panelDestino').classList.add('d-none');
-
-    window.moverBotonesFlotantes(false);
+    if(!marcadorTemp) return;
 
     const nuevaCoordenada = marcadorTemp.getLatLng();
-    const nombreFinal = nombreLugarTemporal; 
+    const nombreFinal = nombreLugarTemporal;
 
-    const tempRef = marcadorTemp;
-    marcadorTemp = null; 
-    window.map.removeLayer(tempRef);
+    const habiaEnrutamientoAnterior = Boolean(
+        trazandoRuta
+        || rutaActiva
+        || trayectoria
+        || marcador
+        || opcionesRutasCalculadas.length > 0
+    );
 
-    if (marcador) {
-        marcador.setLatLng(nuevaCoordenada);
-        marcador.bindPopup(`<strong class="text-success">${nombreFinal}</strong>`);
+    inspeccionandoDestinoTemporal = false;
+
+    // la ruta anterior se elimina unicamente cuando se confirma explicitamente el nuevo destino
+    if (
+        habiaEnrutamientoAnterior && typeof window.cancelarRuta === "function"
+    ) {
+        window.cancelarRuta();
     } else {
-        const capaParaDestino = (window.capas && window.capas.destinos) ? window.capas.destinos : window.map;
-        marcador = L.marker(nuevaCoordenada, { icon: window.iconos.destino }).addTo(capaParaDestino);
-        marcador.bindPopup(`<strong class="text-success">${nombreFinal}</strong>`);
+            document.getElementById('panelDestino').classList.add('d-none');
+            window.moverBotonesFlotantes(false);
+
+            const tempRef = marcadorTemp;
+            marcadorTemp = null;
+            window.map.removeLayer(tempRef);
+            window.zonaPermitidaTemporal = null;
+    }
+
+    if(marcador){
+        marcador.setLatLng(nuevaCoordenada);
+        marcador.bindPopup(
+        `<strong class="text-success">${nombreFinal}</strong>`
+        );
+    } else {
+        const capaParaDestino = window.capas && window.capas.destinos ? window.capas.destinos : window.map;
+
+        marcador = L.marker(nuevaCoordenada, {
+            icon: window.iconos.destino
+        }).addTo(capaParaDestino);
+
+        marcador.bindPopup(
+            `<strong class="text-success">${nombreFinal}</strong>`
+        );
     }
 
     await window.solicitarRuta();
@@ -1078,6 +1111,7 @@ window.cancelarRuta = function(e) {
     trazandoRuta = false;
     perfilRutaActivo = null;
     rutaActiva = null;
+    inspeccionandoDestinoTemporal = false;
     opcionesRutasCalculadas = [];
     toqueMapaPendiente = null;
     window.zonaPermitidaTemporal = null;
@@ -1112,6 +1146,11 @@ window.cancelarRuta = function(e) {
 function renderizarPanelInstrucciones() {
     const panel = document.getElementById('panelNavegacion');
     if (!panel || pasosRuta.length === 0) return;
+
+    if (inspeccionandoDestinoTemporal) {
+        panel.classList.add('d-none');
+        return;
+    }
 
     const searchBox = document.querySelector('.search-container');
     if (searchBox) searchBox.classList.add('d-none');
