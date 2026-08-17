@@ -293,6 +293,7 @@ let perfilRutaActivo = null;
 let rutaActiva = null;
 let toqueMapaPendiente = null;
 let inspeccionandoDestinoTemporal = false;
+let rutaOcultaPorInspeccion = false;
 
 const MODULOS_SELECCION_REQUERIDOS = ['prohibidos', 'interes', 'especiales'];
 
@@ -370,11 +371,9 @@ window.addEventListener('gps:modulo-mapa-listo', () => {
 
 window.map.on('click', function(e) {
     const panel = document.getElementById('panelDestino');
-
-    if(panel && !panel.classList.contains(d-none)) {
+    if (panel && !panel.classList.contains('d-none')) {
         window.cerrarPanelDestino();
     }
-
     procesarToqueMapa(e.latlng);
 });
 
@@ -396,12 +395,16 @@ function procesarSeleccionTemporal(lat, lng, nombre) {
         return;
     }
 
+    // Inspeccionar otra estructura no modifica la ruta que ya está activa.
+    // Sólo se oculta temporalmente su panel para mostrar la confirmación.
+    rutaOcultaPorInspeccion = Boolean(
+        trazandoRuta
+        && rutaActiva
+        && pasosRuta.length > 0
+    );
     inspeccionandoDestinoTemporal = true;
-
     const panelNavegacion = document.getElementById('panelNavegacion');
-    if(panelNavegacion){
-        panelNavegacion.classList.add('d-none');
-    }
+    if (panelNavegacion) panelNavegacion.classList.add('d-none');
 
     if (marcadorTemp) {
         marcadorTemp.setLatLng([lat, lng]);
@@ -414,19 +417,52 @@ function procesarSeleccionTemporal(lat, lng, nombre) {
     window.moverBotonesFlotantes(true, 'panelDestino');
 }
 
-window.cerrarPanelDestino = function() {
-    inspeccionandoDestinoTemporal = false;
-
-    document.getElementById('panelDestino').classList.add('d-none');
-
-    if (marcadorTemp) {
-        window.map.removeLayer(marcadorTemp);
-        marcadorTemp = null;
+window.cerrarPanelDestino = function(e) {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
     }
 
+    const debeRestaurarRuta = Boolean(
+        rutaOcultaPorInspeccion
+        && trazandoRuta
+        && rutaActiva
+        && pasosRuta.length > 0
+    );
+
+    inspeccionandoDestinoTemporal = false;
+    rutaOcultaPorInspeccion = false;
+
+    const panelDestino = document.getElementById('panelDestino');
+    if (panelDestino) panelDestino.classList.add('d-none');
+    if (marcadorTemp) {
+        if (window.map && window.map.hasLayer(marcadorTemp)) {
+            window.map.removeLayer(marcadorTemp);
+        }
+        marcadorTemp = null;
+    }
     window.zonaPermitidaTemporal = null;
 
-    if(trazandoRuta && rutaActiva && pasosRuta.length > 0){
+    if (debeRestaurarRuta) {
+        // La inspección nunca debe borrar la línea ni el destino anteriores.
+        // Si otra actualización de Leaflet retiró una capa, se vuelve a montar
+        // usando el estado de la ruta que permaneció intacto.
+        const capaTrayectorias = window.capas && window.capas.trayectorias;
+        if (!trayectoria && Array.isArray(rutaActiva.pathCoords)) {
+            dibujarLineaEnMapa(rutaActiva.pathCoords.map(pt => [pt.lat, pt.lng]));
+        } else if (trayectoria && capaTrayectorias && !capaTrayectorias.hasLayer(trayectoria)) {
+            capaTrayectorias.addLayer(trayectoria);
+        } else if (trayectoria && !capaTrayectorias && window.map && !window.map.hasLayer(trayectoria)) {
+            trayectoria.addTo(window.map);
+        }
+
+        const capaDestinos = window.capas && window.capas.destinos;
+        if (marcador && capaDestinos && !capaDestinos.hasLayer(marcador)) {
+            capaDestinos.addLayer(marcador);
+        } else if (marcador && !capaDestinos && window.map && !window.map.hasLayer(marcador)) {
+            marcador.addTo(window.map);
+        }
+
         renderizarPanelInstrucciones();
     } else {
         window.moverBotonesFlotantes(false);
@@ -434,11 +470,10 @@ window.cerrarPanelDestino = function() {
 };
 
 window.confirmarNuevoDestino = async function() {
-    if(!marcadorTemp) return;
+    if (!marcadorTemp) return;
 
     const nuevaCoordenada = marcadorTemp.getLatLng();
     const nombreFinal = nombreLugarTemporal;
-
     const habiaEnrutamientoAnterior = Boolean(
         trazandoRuta
         || rutaActiva
@@ -448,37 +483,29 @@ window.confirmarNuevoDestino = async function() {
     );
 
     inspeccionandoDestinoTemporal = false;
+    rutaOcultaPorInspeccion = false;
 
-    // la ruta anterior se elimina unicamente cuando se confirma explicitamente el nuevo destino
-    if (
-        habiaEnrutamientoAnterior && typeof window.cancelarRuta === "function"
-    ) {
+    // La ruta anterior sólo se sustituye cuando el usuario confirma
+    // expresamente el nuevo edificio mediante "Iniciar Ruta".
+    if (habiaEnrutamientoAnterior && typeof window.cancelarRuta === 'function') {
         window.cancelarRuta();
     } else {
-            document.getElementById('panelDestino').classList.add('d-none');
-            window.moverBotonesFlotantes(false);
+        document.getElementById('panelDestino').classList.add('d-none');
+        window.moverBotonesFlotantes(false);
 
-            const tempRef = marcadorTemp;
-            marcadorTemp = null;
-            window.map.removeLayer(tempRef);
-            window.zonaPermitidaTemporal = null;
+        const tempRef = marcadorTemp;
+        marcadorTemp = null;
+        window.map.removeLayer(tempRef);
+        window.zonaPermitidaTemporal = null;
     }
 
-    if(marcador){
+    if (marcador) {
         marcador.setLatLng(nuevaCoordenada);
-        marcador.bindPopup(
-        `<strong class="text-success">${nombreFinal}</strong>`
-        );
+        marcador.bindPopup(`<strong class="text-success">${nombreFinal}</strong>`);
     } else {
-        const capaParaDestino = window.capas && window.capas.destinos ? window.capas.destinos : window.map;
-
-        marcador = L.marker(nuevaCoordenada, {
-            icon: window.iconos.destino
-        }).addTo(capaParaDestino);
-
-        marcador.bindPopup(
-            `<strong class="text-success">${nombreFinal}</strong>`
-        );
+        const capaParaDestino = (window.capas && window.capas.destinos) ? window.capas.destinos : window.map;
+        marcador = L.marker(nuevaCoordenada, { icon: window.iconos.destino }).addTo(capaParaDestino);
+        marcador.bindPopup(`<strong class="text-success">${nombreFinal}</strong>`);
     }
 
     await window.solicitarRuta();
@@ -1112,6 +1139,7 @@ window.cancelarRuta = function(e) {
     perfilRutaActivo = null;
     rutaActiva = null;
     inspeccionandoDestinoTemporal = false;
+    rutaOcultaPorInspeccion = false;
     opcionesRutasCalculadas = [];
     toqueMapaPendiente = null;
     window.zonaPermitidaTemporal = null;
@@ -1147,6 +1175,8 @@ function renderizarPanelInstrucciones() {
     const panel = document.getElementById('panelNavegacion');
     if (!panel || pasosRuta.length === 0) return;
 
+    // La navegación sigue activa mientras se inspecciona otro edificio,
+    // pero su panel queda temporalmente detrás del panel de confirmación.
     if (inspeccionandoDestinoTemporal) {
         panel.classList.add('d-none');
         return;
