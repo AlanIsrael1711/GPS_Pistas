@@ -32,7 +32,8 @@
     height: 30px;
     object-fit: contain;
     transform-origin: center;
-    transition: transform 120ms linear, filter 180ms ease;
+    /* El mapa ya suaviza el bearing; animar además el icono lo dejaría atrás. */
+    transition: filter 180ms ease;
     user-select: none;
     -webkit-user-drag: none;
 }
@@ -513,7 +514,15 @@
 /* Permitimos que solo el icono del GPS (cuando rotas físicamente con la brújula) 
    conserve su suavidad para que no se vea robótico */
 .leaflet-marker-icon.gps-marcador {
-    transition: transform 0.15s ease-out !important;
+    /* La transformación exterior contiene la posición calculada por Leaflet.
+       Nunca debe animarse porque produciría el efecto de marcador "pegado". */
+    transition: none !important;
+}
+
+.leaflet-marker-icon.gps-marcador svg {
+    transform-origin: center;
+    transition: none;
+    will-change: transform;
 }
 /* ==========================================================================
    ACELERACIÓN GPU Y TRUCO DE ROTACIÓN FLUIDA
@@ -545,6 +554,32 @@
 /* El marcador del usuario SIEMPRE debe estar visible */
 .mapa-en-movimiento .gps-marcador {
     opacity: 1 !important;
+}
+
+.mapa-en-movimiento .gps-marcador svg,
+.mapa-en-movimiento .aeronave-icono {
+    transition: none !important;
+}
+
+#btnBrujula .indicador-norte-mapa {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 0.65;
+    color: #111827;
+    transform-origin: center;
+    transition: none;
+    will-change: transform;
+}
+
+#btnBrujula .indicador-norte-letra {
+    font-size: 0.58rem;
+    font-weight: 900;
+}
+
+#btnBrujula .indicador-norte-mapa i {
+    font-size: 1.15rem;
 }
 
 /*---------------------------------------*/
