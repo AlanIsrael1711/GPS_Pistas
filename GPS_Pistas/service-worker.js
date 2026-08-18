@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'gps-pistas-v4-ruta-persistente';
+const VERSION = 'gps-pistas-v6-giro-manual-giroscopio';
 const CACHE_APP = `${VERSION}-app`;
 const CACHE_TILES = `${VERSION}-tiles`;
 const MAX_TILES = 120;
@@ -87,9 +87,9 @@ async function desdeCacheConActualizacion(request) {
     return respuesta;
 }
 
-// main.js contiene la lógica de navegación. Cuando hay red se solicita la
-// versión actual para no seguir ejecutando una copia antigua del service
-// worker; sin conexión se conserva el respaldo local.
+// Los archivos de interacción móvil contienen la navegación, orientación y
+// marcadores. Cuando hay red se solicita su versión actual para no ejecutar
+// una copia antigua; sin conexión se conserva el respaldo local.
 async function desdeRedConRespaldo(request) {
     const cache = await caches.open(CACHE_APP);
     try {
@@ -138,7 +138,13 @@ self.addEventListener('fetch', event => {
     }
     if (url.pathname.startsWith('/api/')) return;
     if (url.pathname.startsWith('/socket.io/') && url.pathname !== '/socket.io/socket.io.js') return;
-    if (url.pathname === '/js/main.js') {
+    if ([
+        '/js/main.js',
+        '/js/mapConfig.js',
+        '/js/mapIconos.js',
+        '/js/mapAeronaves.js',
+        '/estilos/style.css'
+    ].includes(url.pathname)) {
         event.respondWith(desdeRedConRespaldo(request));
         return;
     }
