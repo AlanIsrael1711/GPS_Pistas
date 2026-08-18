@@ -8,7 +8,7 @@
 // actualizarRotacionIcono() en main.js rota el SVG según el giroscopio.
 const svgMiUbicacion = `
 <svg width="38" height="38" viewBox="-24 -24 48 48" xmlns="http://www.w3.org/2000/svg" style="overflow:visible;">
-  <g transform="rotate(180)">
+  <g>
     <path d="M 0 -20 L -20 16 A 24 24 0 0 0 20 16 Z" fill="rgba(37,99,235,0.22)"/>
     <circle cx="0" cy="0" r="13" fill="white" stroke="#2563eb" stroke-width="2"/>
     <circle cx="0" cy="0" r="10" fill="#2563eb"/>
@@ -30,7 +30,7 @@ const svgDestinoTemporal = `
 
 window.iconos = {
     miUbicacion: L.divIcon({
-        className: 'icono-vectorial marcador-usuario-direccion',
+        className: 'icono-vectorial gps-marcador marcador-usuario-direccion',
         html: svgMiUbicacion,
         iconSize: [48, 48],
         iconAnchor: [24, 24]  // Centro exacto: el punto GPS cae en el centro del círculo

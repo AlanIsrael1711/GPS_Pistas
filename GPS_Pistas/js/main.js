@@ -246,7 +246,12 @@ function actualizarUbicacionLocal(lat, lng) {
         const iconoUsuario = (window.iconos && window.iconos.miUbicacion)
             ? window.iconos.miUbicacion
             : new L.Icon.Default();
-        miMarcadorLocal = L.marker([lat, lng], { icon: iconoUsuario }).addTo(capaDestino);
+        miMarcadorLocal = L.marker([lat, lng], {
+            icon: iconoUsuario,
+            keyboard: false,
+            riseOnHover: true
+        }).addTo(capaDestino);
+        if (ultimoAnguloRenderizado !== -1) actualizarRotacionIcono(ultimoAnguloRenderizado);
         if (marcador) window.enfocarUsuario();
     }
 
@@ -270,6 +275,7 @@ if (navigator.geolocation) {
             const ahora = Date.now();
             const { latitude, longitude } = pos.coords;
             actualizarUbicacionLocal(latitude, longitude);
+            actualizarRumboDesdeGPS(pos.coords);
 
             if (ahora - ultimaActualizacionEspacial > 2000) {
                 if (typeof window.desbloquearZonaOrigen === 'function') window.desbloquearZonaOrigen(latitude, longitude);
@@ -844,119 +850,218 @@ if (chkEvitarPistas) {
 }
 
 // =======================================================
-// GIROSCOPIO — Filtro de suavizado con zona muerta (anti-erratico)
+// ORIENTACIÓN MÓVIL — fusión de giroscopio + giro manual
 // =======================================================
 let usandoAbsoluto = false;
+let brujulaEscuchando = false;
 let anguloCrudo = null;
 let anguloSuavizado = null;
 let ultimoAnguloRenderizado = -1;
 
-document.addEventListener('DOMContentLoaded', () => {
-    const btnEnfoque = document.getElementById('btnEnfocarGps');
-    if (btnEnfoque && window.map) {
-        // El dragstart que cancela el seguimiento y muestra el botón
-        // está en la sección 8 junto al resto de eventos del mapa.
-        btnEnfoque.addEventListener('click', () => { window.enfocarUsuario(); inicializarBrujula(); });
+function normalizarAngulo(angulo) {
+    return ((angulo % 360) + 360) % 360;
+}
+
+function diferenciaCircular(destino, actual) {
+    let diferencia = normalizarAngulo(destino) - normalizarAngulo(actual);
+    while (diferencia > 180) diferencia -= 360;
+    while (diferencia < -180) diferencia += 360;
+    return diferencia;
+}
+
+function anguloPantalla() {
+    if (window.screen && window.screen.orientation && Number.isFinite(window.screen.orientation.angle)) {
+        return window.screen.orientation.angle;
+    }
+    return Number.isFinite(Number(window.orientation)) ? Number(window.orientation) : 0;
+}
+
+// Convierte alpha/beta/gamma en la dirección real de la parte superior de
+// la pantalla. Funciona tanto con el teléfono casi horizontal como erguido.
+function calcularRumboDesdeEuler(alpha, beta, gamma) {
+    if (![alpha, beta, gamma].every(Number.isFinite)) return null;
+
+    const a = alpha * Math.PI / 180;
+    const b = beta * Math.PI / 180;
+    const g = gamma * Math.PI / 180;
+    const vx = -Math.cos(a) * Math.sin(g) - Math.sin(a) * Math.sin(b) * Math.cos(g);
+    const vy = -Math.sin(a) * Math.sin(g) + Math.cos(a) * Math.sin(b) * Math.cos(g);
+
+    // Cuando el teléfono está totalmente plano, alpha es el respaldo útil.
+    const rumboBase = Math.abs(vx) + Math.abs(vy) < 0.000001
+        ? 360 - alpha
+        : Math.atan2(vx, vy) * 180 / Math.PI;
+
+    return normalizarAngulo(rumboBase + anguloPantalla());
+}
+
+function obtenerRumboDispositivo(event) {
+    if (event.webkitCompassHeading !== null && event.webkitCompassHeading !== undefined) {
+        const rumboIOS = Number(event.webkitCompassHeading);
+        if (Number.isFinite(rumboIOS)) return normalizarAngulo(rumboIOS);
     }
 
-    // Brújula: efecto visual de clic y regresa el mapa al norte (bearing 0).
-    const btnBrujula = document.getElementById('btnBrujula');
-    if (btnBrujula) {
-        btnBrujula.addEventListener('click', () => {
-            btnBrujula.classList.remove('bg-white');
-            btnBrujula.classList.add('bg-primary');
-            btnBrujula.innerHTML = '<i class="bi bi-compass fs-4 text-white"></i>';
+    if (event.alpha === null || event.alpha === undefined) return null;
+    const alpha = Number(event.alpha);
+    if (!Number.isFinite(alpha)) return null;
+    const beta = Number.isFinite(Number(event.beta)) ? Number(event.beta) : 0;
+    const gamma = Number.isFinite(Number(event.gamma)) ? Number(event.gamma) : 0;
+    return calcularRumboDesdeEuler(alpha, beta, gamma);
+}
 
-            setTimeout(() => {
-                btnBrujula.classList.remove('bg-primary');
-                btnBrujula.classList.add('bg-white');
-                btnBrujula.innerHTML = '<i class="bi bi-compass fs-4 text-dark"></i>';
-            }, 200);
+// Respaldo para equipos sin sensor de orientación: si el usuario se desplaza,
+// el GPS aporta el rumbo de movimiento. La brújula física siempre tiene
+// prioridad porque representa hacia dónde mira el teléfono.
+function actualizarRumboDesdeGPS(coords) {
+    if (brujulaEscuchando && anguloCrudo !== null) return;
+    const rumbo = Number(coords && coords.heading);
+    const velocidad = Number(coords && coords.speed);
+    if (!Number.isFinite(rumbo) || rumbo < 0) return;
+    if (Number.isFinite(velocidad) && velocidad < 0.8) return;
+    anguloCrudo = normalizarAngulo(rumbo);
+    if (anguloSuavizado === null) anguloSuavizado = anguloCrudo;
+}
 
-            if (window.map && typeof window.map.setBearing === 'function') {
-                window.map.setBearing(0, { animate: true, duration: 0.5 });
-            }
-            // Re-renderizamos el ícono con el nuevo bearing tras la animación
-            setTimeout(() => {
-                if (ultimoAnguloRenderizado !== -1) actualizarRotacionIcono(ultimoAnguloRenderizado);
-            }, 520);
-        });
+async function inicializarBrujula(desdeGestoUsuario = false) {
+    if (brujulaEscuchando) return true;
+    const APIOrientacion = window.DeviceOrientationEvent;
+    if (!APIOrientacion) return false;
+
+    if (typeof APIOrientacion.requestPermission === 'function') {
+        if (!desdeGestoUsuario) return false;
+        try {
+            const permiso = await APIOrientacion.requestPermission();
+            if (permiso !== 'granted') return false;
+        } catch (error) {
+            console.warn('No fue posible activar la orientación:', error.message);
+            return false;
+        }
     }
 
-    inicializarBrujula();
-    requestAnimationFrame(bucleIconoSuave);
-});
-
-function inicializarBrujula() {
-    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission().then(p => { if (p === 'granted') escucharOrientacion(); }).catch(console.error);
-    } else escucharOrientacion();
+    escucharOrientacion();
+    return true;
 }
 
 function escucharOrientacion() {
-    // Preferimos deviceorientationabsolute (más preciso, ya referenciado al norte magnético)
-    window.addEventListener('deviceorientationabsolute', (e) => { usandoAbsoluto = true; handlerOrientacion(e); }, true);
-    window.addEventListener('deviceorientation', (e) => { if (!usandoAbsoluto) handlerOrientacion(e); }, true);
+    if (brujulaEscuchando) return;
+    brujulaEscuchando = true;
+    window.addEventListener('deviceorientationabsolute', event => {
+        usandoAbsoluto = true;
+        handlerOrientacion(event);
+    }, true);
+    window.addEventListener('deviceorientation', event => {
+        if (!usandoAbsoluto) handlerOrientacion(event);
+    }, true);
 }
 
 function handlerOrientacion(event) {
-    let heading;
-    if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
-        heading = event.webkitCompassHeading;
-    } else if (event.alpha !== null) {
-        heading = (360 - event.alpha) % 360;
-    }
-    if (heading !== undefined && heading !== null) {
-        anguloCrudo = heading;
-        // Inicializamos el suavizado en el primer dato recibido
-        if (anguloSuavizado === null) anguloSuavizado = heading;
-    }
+    const rumbo = obtenerRumboDispositivo(event);
+    if (rumbo === null) return;
+    anguloCrudo = rumbo;
+    if (anguloSuavizado === null) anguloSuavizado = rumbo;
 }
 
-// Bucle RAF: suaviza el ángulo crudo y solo renderiza cuando el cambio es visible.
-// Alpha adaptativo: absorbe vibraciones pequeñas, responde rápido a giros grandes.
-// Zona muerta gráfica de 2°: evita micro-temblores constantes en el SVG.
-function bucleIconoSuave() {
+function rumboVisualActual() {
+    if (ultimoAnguloRenderizado !== -1) return ultimoAnguloRenderizado;
+    if (anguloSuavizado !== null) return anguloSuavizado;
+    if (anguloCrudo !== null) return anguloCrudo;
+    // Sin sensor todavía, se conserva norte como referencia para que el icono
+    // también responda al giro manual en lugar de quedarse fijo en pantalla.
+    return 0;
+}
+
+function actualizarRotacionIcono(angulo = rumboVisualActual()) {
+    if (!miMarcadorLocal) return;
+    if (typeof miMarcadorLocal.update === 'function') miMarcadorLocal.update();
+
+    const icono = miMarcadorLocal.getElement
+        ? miMarcadorLocal.getElement()
+        : miMarcadorLocal._icon;
+    const svgEl = icono && icono.querySelector('svg');
+    if (!svgEl) return;
+
+    const bearing = window.map && typeof window.map.getBearing === 'function'
+        ? window.map.getBearing()
+        : 0;
+    const anguloCSS = normalizarAngulo(angulo - bearing);
+    svgEl.style.transform = `rotateZ(${anguloCSS}deg)`;
+}
+
+function actualizarBrujulaInterfaz() {
+    const btn = document.getElementById('btnBrujula');
+    const indicador = btn && btn.querySelector('.indicador-norte-mapa');
+    if (!indicador) return;
+    const bearing = window.map && typeof window.map.getBearing === 'function'
+        ? window.map.getBearing()
+        : 0;
+    // Si el mapa gira a la derecha, el norte queda visualmente a la izquierda.
+    indicador.style.transform = `rotate(${-bearing}deg)`;
+}
+
+function sincronizarOrientacionVisual() {
+    if (miMarcadorLocal && typeof miMarcadorLocal.update === 'function') {
+        miMarcadorLocal.update();
+    }
+    actualizarRotacionIcono(rumboVisualActual());
+    actualizarBrujulaInterfaz();
+}
+
+// El giro manual del mapa nunca se sobrescribe. El giroscopio sólo modifica el
+// rumbo físico del usuario; ambos valores se combinan al dibujar el icono.
+function bucleOrientacionSuave() {
     if (anguloCrudo !== null && anguloSuavizado !== null) {
+        const diferencia = diferenciaCircular(anguloCrudo, anguloSuavizado);
+        const magnitud = Math.abs(diferencia);
+        let alpha = 0.08;
+        if (magnitud > 25) alpha = 0.28;
+        else if (magnitud > 8) alpha = 0.16;
 
-        // Diferencia circular (evita saltos en el cruce 0°/360°)
-        let diferencia = anguloCrudo - anguloSuavizado;
-        while (diferencia >  180) diferencia -= 360;
-        while (diferencia < -180) diferencia += 360;
+        anguloSuavizado = normalizarAngulo(anguloSuavizado + diferencia * alpha);
 
-        // Alpha adaptativo según la magnitud del giro
-        const abs = Math.abs(diferencia);
-        let alpha = 0.012;           // Reposo: absorción casi total de vibración
-        if      (abs > 20) alpha = 0.055;  // Giro rápido: respuesta ágil
-        else if (abs > 8)  alpha = 0.025;  // Giro medio: transición fluida
-
-        anguloSuavizado += diferencia * alpha;
-        if (anguloSuavizado <   0) anguloSuavizado += 360;
-        if (anguloSuavizado >= 360) anguloSuavizado -= 360;
-
-        // Zona muerta gráfica: solo renderizamos si el cambio es ≥ 2°
-        let difRender = anguloSuavizado - ultimoAnguloRenderizado;
-        while (difRender >  180) difRender -= 360;
-        while (difRender < -180) difRender += 360;
-
-        if (Math.abs(difRender) >= 2 || ultimoAnguloRenderizado === -1) {
-            ultimoAnguloRenderizado = Math.round(anguloSuavizado);
-            actualizarRotacionIcono(ultimoAnguloRenderizado);
+        const diferenciaRender = ultimoAnguloRenderizado === -1
+            ? 360
+            : Math.abs(diferenciaCircular(anguloSuavizado, ultimoAnguloRenderizado));
+        if (diferenciaRender >= 0.7 || ultimoAnguloRenderizado === -1) {
+            ultimoAnguloRenderizado = anguloSuavizado;
+            actualizarRotacionIcono(anguloSuavizado);
         }
     }
-    requestAnimationFrame(bucleIconoSuave);
+    requestAnimationFrame(bucleOrientacionSuave);
 }
 
-function actualizarRotacionIcono(angulo) {
-    if (miMarcadorLocal && miMarcadorLocal._icon) {
-        const svgEl = miMarcadorLocal._icon.querySelector('svg');
-        if (svgEl) {
-            const bearing = (window.map && typeof window.map.getBearing === 'function') ? window.map.getBearing() : 0;
-            const anguloCSS = ((angulo - bearing) % 360 + 360) % 360;
-            svgEl.style.transform = `rotateZ(${anguloCSS}deg)`;
+document.addEventListener('DOMContentLoaded', () => {
+    const activarSensorOrientacion = async () => {
+        const disponible = await inicializarBrujula(true);
+        if (!disponible && typeof mostrarAvisoMapa === 'function') {
+            mostrarAvisoMapa('Permite el acceso a orientación para mostrar tu rumbo real');
         }
+        return disponible;
+    };
+
+    const btnEnfoque = document.getElementById('btnEnfocarGps');
+    if (btnEnfoque && window.map) {
+        btnEnfoque.addEventListener('click', async () => {
+            await activarSensorOrientacion();
+            window.enfocarUsuario();
+            sincronizarOrientacionVisual();
+        });
     }
-}
+
+    const btnBrujula = document.getElementById('btnBrujula');
+    if (btnBrujula) {
+        btnBrujula.addEventListener('click', async () => {
+            await activarSensorOrientacion();
+            if (window.map && typeof window.map.setBearing === 'function') {
+                window.map.setBearing(0);
+            }
+            sincronizarOrientacionVisual();
+        });
+    }
+
+    inicializarBrujula(false);
+    sincronizarOrientacionVisual();
+    requestAnimationFrame(bucleOrientacionSuave);
+});
 
 // =======================================================
 // 8. OPTIMIZADOR DE RENDIMIENTO VISUAL (ANTI-LAG)
@@ -994,7 +1099,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.map.on('zoomend', desactivarModoMovimiento);
 
         window.map.on('rotate', () => {
-            if (ultimoAnguloRenderizado !== -1) actualizarRotacionIcono(ultimoAnguloRenderizado);
+            sincronizarOrientacionVisual();
         });
     }
 });

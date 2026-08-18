@@ -21,6 +21,7 @@ window.map = L.map('map', {
     preferCanvas: true,
     rotate: true,
     touchRotate: true,
+    rotateControl: false,
     tapTolerance: 25,
     shiftKeyRotate: true,
     bearing: 0

@@ -109,6 +109,16 @@
         if (entrada.img) entrada.img.style.transform = `rotateZ(${rotacionEnPantalla(entrada.datos.track)}deg)`;
     }
 
+    function sincronizarMarcadorConMapa(entrada) {
+        // leaflet-rotate mantiene los marcadores en un pane sin rotación y
+        // recalcula su posición. update() fuerza ese cálculo en cada frame
+        // táctil para que el avión nunca parezca quedarse pegado a la pantalla.
+        if (entrada.marker && typeof entrada.marker.update === 'function') {
+            entrada.marker.update();
+        }
+        aplicarRotacion(entrada);
+    }
+
     function crearMarcador(vuelo) {
         const contenido = document.createElement('div');
         contenido.className = 'aeronave-marcador-contenido';
@@ -139,7 +149,7 @@
         });
         const entrada = { marker, img, datos: vuelo };
         aeronavesEnMapa.set(vuelo.id, entrada);
-        aplicarRotacion(entrada);
+        sincronizarMarcadorConMapa(entrada);
     }
 
     function actualizarMarcador(entrada, vuelo) {
@@ -149,7 +159,7 @@
         const nuevaRuta = rutaIcono(vuelo.tipo);
         if (!entrada.img.src.endsWith(nuevaRuta)) entrada.img.src = nuevaRuta;
         entrada.img.className = `aeronave-icono ${claseEstado(vuelo)}`;
-        aplicarRotacion(entrada);
+        sincronizarMarcadorConMapa(entrada);
     }
 
     function aplicarActualizados(vuelos) {
@@ -287,7 +297,7 @@
     window.map.on('rotate', () => {
         if (frameRotacion !== null) return;
         frameRotacion = requestAnimationFrame(() => {
-            for (const entrada of aeronavesEnMapa.values()) aplicarRotacion(entrada);
+            for (const entrada of aeronavesEnMapa.values()) sincronizarMarcadorConMapa(entrada);
             frameRotacion = null;
         });
     });
