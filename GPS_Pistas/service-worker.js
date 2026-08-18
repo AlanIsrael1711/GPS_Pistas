@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'gps-pistas-v6-giro-manual-giroscopio';
+const VERSION = 'gps-pistas-v8-orientacion-maps';
 const CACHE_APP = `${VERSION}-app`;
 const CACHE_TILES = `${VERSION}-tiles`;
 const MAX_TILES = 120;
@@ -19,6 +19,7 @@ const ARCHIVOS_APP = [
     '/vendor/leaflet-rotate/leaflet-rotate.js',
     '/vendor/turf/turf.min.js',
     '/socket.io/socket.io.js',
+    '/js/orientationModel.js',
     '/js/selectionPolicy.js',
     '/js/mapConfig.js',
     '/js/mapEtiquetasSiguiendoVista.js',
@@ -140,6 +141,7 @@ self.addEventListener('fetch', event => {
     if (url.pathname.startsWith('/socket.io/') && url.pathname !== '/socket.io/socket.io.js') return;
     if ([
         '/js/main.js',
+        '/js/orientationModel.js',
         '/js/mapConfig.js',
         '/js/mapIconos.js',
         '/js/mapAeronaves.js',
