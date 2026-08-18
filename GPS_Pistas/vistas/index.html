@@ -178,8 +178,11 @@
     </div>
         
     <div class="fab-container">
-        <button id="btnBrujula" class="fab-btn bg-white shadow-lg" aria-label="Rotar Mapa">
-            <i class="bi bi-compass fs-4 text-dark"></i>
+        <button id="btnBrujula" class="fab-btn bg-white shadow-lg" aria-label="Restablecer orientación al norte" title="Restablecer norte">
+            <span class="indicador-norte-mapa" aria-hidden="true">
+                <span class="indicador-norte-letra">N</span>
+                <i class="bi bi-caret-up-fill"></i>
+            </span>
         </button>
 
         <button id="btnEnfocarGps" class="fab-btn bg-white shadow-lg" style="display: none;" aria-label="Enfocar al usuario">
