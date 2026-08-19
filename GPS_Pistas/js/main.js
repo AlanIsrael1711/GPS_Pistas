@@ -975,31 +975,54 @@ function rumboVisualActual() {
 
 function actualizarRotacionIcono(angulo = rumboVisualActual()) {
     if (!miMarcadorLocal) return;
-    if (typeof miMarcadorLocal.update === 'function') miMarcadorLocal.update();
+
+    if (typeof miMarcadorLocal.update === 'function') {
+        miMarcadorLocal.update();
+    }
 
     const icono = miMarcadorLocal.getElement
         ? miMarcadorLocal.getElement()
         : miMarcadorLocal._icon;
-    const grupoRumbo = icono && icono.querySelector('.usuario-rumbo');
-    if (!icono || !grupoRumbo) return;
+
+    if (!icono) return;
+
+    // Existen dos piezas que deben girar:
+    // el cono y la punta triangular.
+    const gruposRumbo =
+        icono.querySelectorAll('.usuario-rumbo');
+
+    if (!gruposRumbo || gruposRumbo.length === 0) {
+        return;
+    }
 
     if (!Number.isFinite(Number(angulo))) {
         icono.classList.add('gps-sin-rumbo');
         return;
     }
+
     icono.classList.remove('gps-sin-rumbo');
 
-    const rotacionVisualMapa = window.map && typeof window.map.getBearing === 'function'
-        ? window.map.getBearing()
-        : 0;
-    const anguloCSS = ModeloOrientacion.rumboEnPantalla(
-        angulo,
-        rotacionVisualMapa,
-        OFFSET_ICONO_USUARIO
-    );
-    // El atributo SVG es estable en Chrome/Safari móvil y gira únicamente el
-    // cono. El punto central nunca pierde su anclaje GPS.
-    grupoRumbo.setAttribute('transform', `rotate(${anguloCSS} 0 0)`);
+    const rotacionVisualMapa =
+        window.map &&
+        typeof window.map.getBearing === 'function'
+            ? window.map.getBearing()
+            : 0;
+
+    const anguloCSS =
+        ModeloOrientacion.rumboEnPantalla(
+            angulo,
+            rotacionVisualMapa,
+            OFFSET_ICONO_USUARIO
+        );
+
+    // Se giran solamente el cono y la punta.
+    // Leaflet conserva el control del marcador exterior.
+    gruposRumbo.forEach(grupo => {
+        grupo.setAttribute(
+            'transform',
+            `rotate(${anguloCSS} 0 0)`
+        );
+    });
 }
 
 function actualizarBrujulaInterfaz() {
