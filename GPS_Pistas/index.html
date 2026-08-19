@@ -179,10 +179,7 @@
         
     <div class="fab-container">
         <button id="btnBrujula" class="fab-btn bg-white shadow-lg" aria-label="Restablecer orientación al norte" title="Restablecer norte">
-            <span class="indicador-norte-mapa" aria-hidden="true">
-                <span class="indicador-norte-letra">N</span>
-                <i class="bi bi-caret-up-fill"></i>
-            </span>
+            <i class="bi bi-compass fs-4 text-dark" aria-hidden="true"></i>
         </button>
 
         <button id="btnEnfocarGps" class="fab-btn bg-white shadow-lg" style="display: none;" aria-label="Enfocar al usuario">
@@ -282,6 +279,7 @@
     <script src="/vendor/turf/turf.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     
+    <script src="./js/orientationModel.js"></script>
     <script src="./js/selectionPolicy.js"></script>
     <script src="./js/mapConfig.js"></script>
     <script src="./js/mapEtiquetasSiguiendoVista.js"></script>
