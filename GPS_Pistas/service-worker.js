@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'gps-pistas-v9-rotacion-visual-leaflet';
+const VERSION = 'gps-pistas-v10-icono-usuario-original';
 const CACHE_APP = `${VERSION}-app`;
 const CACHE_TILES = `${VERSION}-tiles`;
 const MAX_TILES = 120;
