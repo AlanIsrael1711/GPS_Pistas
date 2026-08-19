@@ -7,7 +7,37 @@
     --danger-color: #ff4757;
     --dark-bg: #1e1e2e;
     --text-light: #f8f9fa;
-    --nav-height: 56px;
+   --nav-height: 56px;
+}
+
+/* =======================================================
+   Ubicación tipo Maps: posición, rumbo y precisión separados
+   ======================================================= */
+.gps-marcador {
+    background: transparent;
+    border: 0;
+    overflow: visible !important;
+    pointer-events: none;
+}
+
+.gps-marcador .usuario-svg {
+    display: block;
+    overflow: visible;
+    filter: drop-shadow(0 2px 3px rgba(15, 23, 42, 0.22));
+}
+
+.gps-marcador .usuario-rumbo {
+    opacity: 1;
+    transform-origin: 0 0;
+    will-change: transform;
+}
+
+.gps-marcador.gps-sin-rumbo .usuario-rumbo {
+    opacity: 0;
+}
+
+.gps-halo-precision {
+    pointer-events: none;
 }
 
 /* =======================================================
@@ -36,6 +66,10 @@
     transition: filter 180ms ease;
     user-select: none;
     -webkit-user-drag: none;
+}
+
+.aeronave-icono.aeronave-rumbo-desconocido {
+    opacity: 0.72;
 }
 
 .aeronave-estado-normal {
@@ -561,25 +595,11 @@
     transition: none !important;
 }
 
-#btnBrujula .indicador-norte-mapa {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    line-height: 0.65;
-    color: #111827;
+#btnBrujula i {
+    display: inline-block;
     transform-origin: center;
     transition: none;
     will-change: transform;
-}
-
-#btnBrujula .indicador-norte-letra {
-    font-size: 0.58rem;
-    font-weight: 900;
-}
-
-#btnBrujula .indicador-norte-mapa i {
-    font-size: 1.15rem;
 }
 
 /*---------------------------------------*/
