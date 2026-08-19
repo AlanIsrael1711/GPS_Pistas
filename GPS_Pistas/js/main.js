@@ -887,7 +887,7 @@ let anguloSuavizado = null;
 let ultimoAnguloRenderizado = -1;
 let frameOrientacionMapa = null;
 const ModeloOrientacion = window.GPSOrientationModel;
-const OFFSET_ICONO_USUARIO = 0; // El cono SVG apunta hacia arriba (norte).
+const OFFSET_ICONO_USUARIO = 180; // la parte redondeadde del cono original represetna el frente.
 const OFFSET_ICONO_BRUJULA = 0;
 
 if (!ModeloOrientacion) {
