@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'gps-pistas-v10-icono-usuario-original';
+const VERSION = 'gps-pistas-v11-frente-redondo';
 const CACHE_APP = `${VERSION}-app`;
 const CACHE_TILES = `${VERSION}-tiles`;
 const MAX_TILES = 120;
