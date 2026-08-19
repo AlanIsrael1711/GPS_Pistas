@@ -15,6 +15,7 @@
     const aeronavesEnMapa = new Map();
     const capaAeronaves = L.layerGroup().addTo(window.map);
     const socket = window.gpsSocket || io({ transports: ['websocket', 'polling'] });
+    const ModeloOrientacion = window.GPSOrientationModel;
     let actualizadoEn = null;
     let estadoObsoleto = true;
     let frameRotacion = null;
@@ -23,6 +24,10 @@
     window.gpsSocket = socket;
     window.capaAeronaves = capaAeronaves;
     window.aeronavesEnMapa = aeronavesEnMapa;
+
+    if (!ModeloOrientacion) {
+        throw new Error('No se cargó orientationModel.js antes de mapAeronaves.js');
+    }
 
     function texto(valor, respaldo = '--') {
         if (valor === null || valor === undefined) return respaldo;
@@ -102,11 +107,18 @@
 
     function rotacionEnPantalla(track) {
         const bearing = typeof window.map.getBearing === 'function' ? window.map.getBearing() : 0;
-        return ((((track === null ? 0 : track) - bearing) % 360) + 360) % 360;
+        return ModeloOrientacion.rumboEnPantalla(track, bearing);
     }
 
     function aplicarRotacion(entrada) {
-        if (entrada.img) entrada.img.style.transform = `rotateZ(${rotacionEnPantalla(entrada.datos.track)}deg)`;
+        if (!entrada.img) return;
+        const angulo = rotacionEnPantalla(entrada.ultimoTrack);
+        if (angulo === null) {
+            entrada.img.classList.add('aeronave-rumbo-desconocido');
+            return;
+        }
+        entrada.img.classList.remove('aeronave-rumbo-desconocido');
+        entrada.img.style.transform = `rotateZ(${angulo}deg)`;
     }
 
     function sincronizarMarcadorConMapa(entrada) {
@@ -147,12 +159,16 @@
             closeButton: true,
             autoPanPadding: [24, 24]
         });
-        const entrada = { marker, img, datos: vuelo };
+        const entrada = { marker, img, datos: vuelo, ultimoTrack: vuelo.track };
         aeronavesEnMapa.set(vuelo.id, entrada);
         sincronizarMarcadorConMapa(entrada);
     }
 
     function actualizarMarcador(entrada, vuelo) {
+        // Los mensajes ADS-B intermedios pueden no traer track. Conservamos el
+        // último rumbo válido para que el avión no salte artificialmente al
+        // norte y siga reaccionando al bearing del mapa.
+        if (vuelo.track !== null) entrada.ultimoTrack = vuelo.track;
         entrada.datos = vuelo;
         entrada.marker.setLatLng([vuelo.lat, vuelo.lng]);
         entrada.marker.setPopupContent(crearContenidoPopup(vuelo));

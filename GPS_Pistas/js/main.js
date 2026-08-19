@@ -5,6 +5,7 @@
 // Un único marcador local: solo tú existes en el mapa.
 // Se elimina el Map de marcadores múltiples y el sistema multijugador.
 let miMarcadorLocal = null;
+let circuloPrecisionLocal = null;
 let primerAjuste = true;
 let trayectoria = null;
 let marcador = null;
@@ -232,9 +233,35 @@ Promise.all([
 // =======================================================
 let ultimaActualizacionEspacial = 0;
 
-function actualizarUbicacionLocal(lat, lng) {
+function actualizarPrecisionGPS(lat, lng, precisionMetros) {
+    const precision = Number(precisionMetros);
+    if (!Number.isFinite(precision) || precision <= 0) return;
+
+    // El círculo de precisión es una capa geográfica: Leaflet lo mueve y gira
+    // junto con el mapa. El punto azul se dibuja encima como marcador.
+    const radio = Math.min(500, Math.max(3, precision));
+    if (circuloPrecisionLocal) {
+        circuloPrecisionLocal.setLatLng([lat, lng]);
+        circuloPrecisionLocal.setRadius(radio);
+        return;
+    }
+
+    circuloPrecisionLocal = L.circle([lat, lng], {
+        radius: radio,
+        interactive: false,
+        color: '#2563eb',
+        weight: 1,
+        opacity: 0.28,
+        fillColor: '#60a5fa',
+        fillOpacity: 0.13,
+        className: 'gps-halo-precision'
+    }).addTo(window.map);
+}
+
+function actualizarUbicacionLocal(lat, lng, precisionMetros) {
     const capaDestino = (window.capas && window.capas.usuarios) ? window.capas.usuarios : window.map;
     actualizarLimiteVelocidad(lat, lng);
+    actualizarPrecisionGPS(lat, lng, precisionMetros);
 
     if (miMarcadorLocal) {
         miMarcadorLocal.setLatLng([lat, lng]);
@@ -249,9 +276,10 @@ function actualizarUbicacionLocal(lat, lng) {
         miMarcadorLocal = L.marker([lat, lng], {
             icon: iconoUsuario,
             keyboard: false,
-            riseOnHover: true
+            riseOnHover: true,
+            zIndexOffset: 1000
         }).addTo(capaDestino);
-        if (ultimoAnguloRenderizado !== -1) actualizarRotacionIcono(ultimoAnguloRenderizado);
+        actualizarRotacionIcono(rumboVisualActual());
         if (marcador) window.enfocarUsuario();
     }
 
@@ -274,7 +302,7 @@ if (navigator.geolocation) {
         (pos) => {
             const ahora = Date.now();
             const { latitude, longitude } = pos.coords;
-            actualizarUbicacionLocal(latitude, longitude);
+            actualizarUbicacionLocal(latitude, longitude, pos.coords.accuracy);
             actualizarRumboDesdeGPS(pos.coords);
 
             if (ahora - ultimaActualizacionEspacial > 2000) {
@@ -857,17 +885,14 @@ let brujulaEscuchando = false;
 let anguloCrudo = null;
 let anguloSuavizado = null;
 let ultimoAnguloRenderizado = -1;
+const ModeloOrientacion = window.GPSOrientationModel;
 
-function normalizarAngulo(angulo) {
-    return ((angulo % 360) + 360) % 360;
+if (!ModeloOrientacion) {
+    throw new Error('No se cargó orientationModel.js antes de main.js');
 }
 
-function diferenciaCircular(destino, actual) {
-    let diferencia = normalizarAngulo(destino) - normalizarAngulo(actual);
-    while (diferencia > 180) diferencia -= 360;
-    while (diferencia < -180) diferencia += 360;
-    return diferencia;
-}
+const normalizarAngulo = ModeloOrientacion.normalizarAngulo;
+const diferenciaCircular = ModeloOrientacion.diferenciaCircular;
 
 function anguloPantalla() {
     if (window.screen && window.screen.orientation && Number.isFinite(window.screen.orientation.angle)) {
@@ -876,37 +901,8 @@ function anguloPantalla() {
     return Number.isFinite(Number(window.orientation)) ? Number(window.orientation) : 0;
 }
 
-// Convierte alpha/beta/gamma en la dirección real de la parte superior de
-// la pantalla. Funciona tanto con el teléfono casi horizontal como erguido.
-function calcularRumboDesdeEuler(alpha, beta, gamma) {
-    if (![alpha, beta, gamma].every(Number.isFinite)) return null;
-
-    const a = alpha * Math.PI / 180;
-    const b = beta * Math.PI / 180;
-    const g = gamma * Math.PI / 180;
-    const vx = -Math.cos(a) * Math.sin(g) - Math.sin(a) * Math.sin(b) * Math.cos(g);
-    const vy = -Math.sin(a) * Math.sin(g) + Math.cos(a) * Math.sin(b) * Math.cos(g);
-
-    // Cuando el teléfono está totalmente plano, alpha es el respaldo útil.
-    const rumboBase = Math.abs(vx) + Math.abs(vy) < 0.000001
-        ? 360 - alpha
-        : Math.atan2(vx, vy) * 180 / Math.PI;
-
-    return normalizarAngulo(rumboBase + anguloPantalla());
-}
-
 function obtenerRumboDispositivo(event) {
-    if (event.webkitCompassHeading !== null && event.webkitCompassHeading !== undefined) {
-        const rumboIOS = Number(event.webkitCompassHeading);
-        if (Number.isFinite(rumboIOS)) return normalizarAngulo(rumboIOS);
-    }
-
-    if (event.alpha === null || event.alpha === undefined) return null;
-    const alpha = Number(event.alpha);
-    if (!Number.isFinite(alpha)) return null;
-    const beta = Number.isFinite(Number(event.beta)) ? Number(event.beta) : 0;
-    const gamma = Number.isFinite(Number(event.gamma)) ? Number(event.gamma) : 0;
-    return calcularRumboDesdeEuler(alpha, beta, gamma);
+    return ModeloOrientacion.rumboDesdeEvento(event, anguloPantalla());
 }
 
 // Respaldo para equipos sin sensor de orientación: si el usuario se desplaza,
@@ -946,16 +942,20 @@ function escucharOrientacion() {
     if (brujulaEscuchando) return;
     brujulaEscuchando = true;
     window.addEventListener('deviceorientationabsolute', event => {
+        const rumbo = obtenerRumboDispositivo(event);
+        // Algunos equipos anuncian el evento absoluto pero envían valores
+        // nulos. Sólo bloqueamos el respaldo cuando recibimos un rumbo válido.
+        if (rumbo === null) return;
         usandoAbsoluto = true;
-        handlerOrientacion(event);
+        handlerOrientacion(event, rumbo);
     }, true);
     window.addEventListener('deviceorientation', event => {
         if (!usandoAbsoluto) handlerOrientacion(event);
     }, true);
 }
 
-function handlerOrientacion(event) {
-    const rumbo = obtenerRumboDispositivo(event);
+function handlerOrientacion(event, rumboCalculado = null) {
+    const rumbo = rumboCalculado === null ? obtenerRumboDispositivo(event) : rumboCalculado;
     if (rumbo === null) return;
     anguloCrudo = rumbo;
     if (anguloSuavizado === null) anguloSuavizado = rumbo;
@@ -965,9 +965,9 @@ function rumboVisualActual() {
     if (ultimoAnguloRenderizado !== -1) return ultimoAnguloRenderizado;
     if (anguloSuavizado !== null) return anguloSuavizado;
     if (anguloCrudo !== null) return anguloCrudo;
-    // Sin sensor todavía, se conserva norte como referencia para que el icono
-    // también responda al giro manual en lugar de quedarse fijo en pantalla.
-    return 0;
+    // Sin una fuente válida no se inventa un norte: se muestra sólo el punto,
+    // como Maps cuando todavía no tiene rumbo confiable.
+    return null;
 }
 
 function actualizarRotacionIcono(angulo = rumboVisualActual()) {
@@ -977,25 +977,33 @@ function actualizarRotacionIcono(angulo = rumboVisualActual()) {
     const icono = miMarcadorLocal.getElement
         ? miMarcadorLocal.getElement()
         : miMarcadorLocal._icon;
-    const svgEl = icono && icono.querySelector('svg');
-    if (!svgEl) return;
+    const grupoRumbo = icono && icono.querySelector('.usuario-rumbo');
+    if (!icono || !grupoRumbo) return;
+
+    if (!Number.isFinite(Number(angulo))) {
+        icono.classList.add('gps-sin-rumbo');
+        return;
+    }
+    icono.classList.remove('gps-sin-rumbo');
 
     const bearing = window.map && typeof window.map.getBearing === 'function'
         ? window.map.getBearing()
         : 0;
-    const anguloCSS = normalizarAngulo(angulo - bearing);
-    svgEl.style.transform = `rotateZ(${anguloCSS}deg)`;
+    const anguloCSS = ModeloOrientacion.rumboEnPantalla(angulo, bearing);
+    // El atributo SVG es estable en Chrome/Safari móvil y gira únicamente el
+    // cono. El punto central nunca pierde su anclaje GPS.
+    grupoRumbo.setAttribute('transform', `rotate(${anguloCSS} 0 0)`);
 }
 
 function actualizarBrujulaInterfaz() {
     const btn = document.getElementById('btnBrujula');
-    const indicador = btn && btn.querySelector('.indicador-norte-mapa');
-    if (!indicador) return;
+    const icono = btn && btn.querySelector('i');
+    if (!icono) return;
     const bearing = window.map && typeof window.map.getBearing === 'function'
         ? window.map.getBearing()
         : 0;
     // Si el mapa gira a la derecha, el norte queda visualmente a la izquierda.
-    indicador.style.transform = `rotate(${-bearing}deg)`;
+    icono.style.transform = `rotate(${-bearing}deg)`;
 }
 
 function sincronizarOrientacionVisual() {
@@ -1016,7 +1024,7 @@ function bucleOrientacionSuave() {
         if (magnitud > 25) alpha = 0.28;
         else if (magnitud > 8) alpha = 0.16;
 
-        anguloSuavizado = normalizarAngulo(anguloSuavizado + diferencia * alpha);
+        anguloSuavizado = ModeloOrientacion.suavizarCircular(anguloSuavizado, anguloCrudo, alpha);
 
         const diferenciaRender = ultimoAnguloRenderizado === -1
             ? 360
@@ -1061,6 +1069,16 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarBrujula(false);
     sincronizarOrientacionVisual();
     requestAnimationFrame(bucleOrientacionSuave);
+
+    // Al cambiar de vertical a horizontal, la parte superior física de la
+    // pantalla cambia. Se vuelve a proyectar el último rumbo sin alterar el
+    // bearing manual que eligió el usuario.
+    if (window.screen && window.screen.orientation &&
+        typeof window.screen.orientation.addEventListener === 'function') {
+        window.screen.orientation.addEventListener('change', sincronizarOrientacionVisual);
+    } else {
+        window.addEventListener('orientationchange', sincronizarOrientacionVisual);
+    }
 });
 
 // =======================================================
