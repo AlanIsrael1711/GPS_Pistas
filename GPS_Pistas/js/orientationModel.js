@@ -1,5 +1,7 @@
 // Modelo común de orientación para el usuario, las aeronaves y la brújula.
-// Mantiene separados el rumbo real (mundo) y el bearing de la cámara (mapa).
+// Mantiene separados el rumbo real (mundo) y la rotación visual producida por
+// leaflet-rotate. Esta última no usa el mismo signo que el bearing de cámara
+// de MapLibre/Google Maps.
 (function crearModeloOrientacion(root, factory) {
     const api = factory();
     if (typeof module === 'object' && module.exports) module.exports = api;
@@ -24,13 +26,16 @@
         return diferencia;
     }
 
-    // Dirección que debe verse en la pantalla. Si el mapa gira a la derecha,
-    // un rumbo real que no cambió debe verse girar a la izquierda.
-    function rumboEnPantalla(rumboMundo, bearingMapa) {
+    // leaflet-rotate coloca los marcadores en norotatePane y recalcula su
+    // posición geográfica, mientras rotatePane gira visualmente con bearing.
+    // Por ello el hijo direccional debe SUMAR esa rotación para conservar la
+    // alineación con pistas, rodajes y cualquier otra referencia del mapa.
+    function rumboEnPantalla(rumboMundo, rotacionVisualMapa, offsetIcono = 0) {
         const rumbo = normalizarAngulo(rumboMundo);
-        const bearing = normalizarAngulo(bearingMapa);
+        const rotacionMapa = normalizarAngulo(rotacionVisualMapa);
+        const offset = Number.isFinite(Number(offsetIcono)) ? Number(offsetIcono) : 0;
         if (rumbo === null) return null;
-        return normalizarAngulo(rumbo - (bearing === null ? 0 : bearing));
+        return normalizarAngulo(rumbo + (rotacionMapa === null ? 0 : rotacionMapa) + offset);
     }
 
     function suavizarCircular(actual, destino, factor) {

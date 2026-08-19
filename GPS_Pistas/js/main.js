@@ -885,7 +885,10 @@ let brujulaEscuchando = false;
 let anguloCrudo = null;
 let anguloSuavizado = null;
 let ultimoAnguloRenderizado = -1;
+let frameOrientacionMapa = null;
 const ModeloOrientacion = window.GPSOrientationModel;
+const OFFSET_ICONO_USUARIO = 0; // El cono SVG apunta hacia arriba (norte).
+const OFFSET_ICONO_BRUJULA = 0;
 
 if (!ModeloOrientacion) {
     throw new Error('No se cargó orientationModel.js antes de main.js');
@@ -986,10 +989,14 @@ function actualizarRotacionIcono(angulo = rumboVisualActual()) {
     }
     icono.classList.remove('gps-sin-rumbo');
 
-    const bearing = window.map && typeof window.map.getBearing === 'function'
+    const rotacionVisualMapa = window.map && typeof window.map.getBearing === 'function'
         ? window.map.getBearing()
         : 0;
-    const anguloCSS = ModeloOrientacion.rumboEnPantalla(angulo, bearing);
+    const anguloCSS = ModeloOrientacion.rumboEnPantalla(
+        angulo,
+        rotacionVisualMapa,
+        OFFSET_ICONO_USUARIO
+    );
     // El atributo SVG es estable en Chrome/Safari móvil y gira únicamente el
     // cono. El punto central nunca pierde su anclaje GPS.
     grupoRumbo.setAttribute('transform', `rotate(${anguloCSS} 0 0)`);
@@ -999,11 +1006,17 @@ function actualizarBrujulaInterfaz() {
     const btn = document.getElementById('btnBrujula');
     const icono = btn && btn.querySelector('i');
     if (!icono) return;
-    const bearing = window.map && typeof window.map.getBearing === 'function'
+    const rotacionVisualMapa = window.map && typeof window.map.getBearing === 'function'
         ? window.map.getBearing()
         : 0;
-    // Si el mapa gira a la derecha, el norte queda visualmente a la izquierda.
-    icono.style.transform = `rotate(${-bearing}deg)`;
+    // El icono antiguo conserva el norte alineado con el contenido geográfico.
+    // leaflet-rotate aplica getBearing() como rotación visual, por eso se suma.
+    const anguloNorte = ModeloOrientacion.rumboEnPantalla(
+        0,
+        rotacionVisualMapa,
+        OFFSET_ICONO_BRUJULA
+    );
+    icono.style.transform = `rotate(${anguloNorte}deg)`;
 }
 
 function sincronizarOrientacionVisual() {
@@ -1012,6 +1025,16 @@ function sincronizarOrientacionVisual() {
     }
     actualizarRotacionIcono(rumboVisualActual());
     actualizarBrujulaInterfaz();
+}
+
+function programarSincronizacionOrientacion() {
+    if (frameOrientacionMapa !== null) return;
+    frameOrientacionMapa = requestAnimationFrame(() => {
+        // La rotación del mapa se proyecta sin suavizado. Sólo el sensor físico
+        // pasa por el filtro circular del bucle de orientación.
+        sincronizarOrientacionVisual();
+        frameOrientacionMapa = null;
+    });
 }
 
 // El giro manual del mapa nunca se sobrescribe. El giroscopio sólo modifica el
@@ -1079,6 +1102,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         window.addEventListener('orientationchange', sincronizarOrientacionVisual);
     }
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) return;
+        inicializarBrujula(false);
+        programarSincronizacionOrientacion();
+    });
 });
 
 // =======================================================
@@ -1116,9 +1145,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.map.on('dragend', desactivarModoMovimiento);
         window.map.on('zoomend', desactivarModoMovimiento);
 
-        window.map.on('rotate', () => {
-            sincronizarOrientacionVisual();
-        });
+        window.map.on('rotate', programarSincronizacionOrientacion);
     }
 });
 

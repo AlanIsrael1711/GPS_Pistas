@@ -16,6 +16,7 @@
     const capaAeronaves = L.layerGroup().addTo(window.map);
     const socket = window.gpsSocket || io({ transports: ['websocket', 'polling'] });
     const ModeloOrientacion = window.GPSOrientationModel;
+    const OFFSET_SVG_AVION = 0; // Los SVG incluidos apuntan hacia arriba.
     let actualizadoEn = null;
     let estadoObsoleto = true;
     let frameRotacion = null;
@@ -106,8 +107,14 @@
     }
 
     function rotacionEnPantalla(track) {
-        const bearing = typeof window.map.getBearing === 'function' ? window.map.getBearing() : 0;
-        return ModeloOrientacion.rumboEnPantalla(track, bearing);
+        const rotacionVisualMapa = typeof window.map.getBearing === 'function'
+            ? window.map.getBearing()
+            : 0;
+        return ModeloOrientacion.rumboEnPantalla(
+            track,
+            rotacionVisualMapa,
+            OFFSET_SVG_AVION
+        );
     }
 
     function aplicarRotacion(entrada) {
@@ -167,7 +174,7 @@
     function actualizarMarcador(entrada, vuelo) {
         // Los mensajes ADS-B intermedios pueden no traer track. Conservamos el
         // último rumbo válido para que el avión no salte artificialmente al
-        // norte y siga reaccionando al bearing del mapa.
+        // norte y siga reaccionando a la rotación visual del mapa.
         if (vuelo.track !== null) entrada.ultimoTrack = vuelo.track;
         entrada.datos = vuelo;
         entrada.marker.setLatLng([vuelo.lat, vuelo.lng]);
