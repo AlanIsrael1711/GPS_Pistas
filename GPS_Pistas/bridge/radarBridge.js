@@ -33,9 +33,9 @@ async function leerRadarLocal() {
             signal: controller.signal,
             headers: { Accept: 'application/json' }
         });
-        if (!respuesta.ok) throw new Error(`radar local respondiÃ³ ${respuesta.status}`);
+        if (!respuesta.ok) throw new Error(`radar local respondió ${respuesta.status}`);
         const datos = await respuesta.json();
-        if (!Array.isArray(datos)) throw new Error('el radar local no devolviÃ³ una lista');
+        if (!Array.isArray(datos)) throw new Error('el radar local no devolvió una lista');
         return datos;
     } finally {
         clearTimeout(timeout);
@@ -54,7 +54,7 @@ async function publicar(vuelos) {
     });
     if (!respuesta.ok) {
         const detalle = await respuesta.text();
-        throw new Error(`host respondiÃ³ ${respuesta.status}: ${detalle.slice(0, 160)}`);
+        throw new Error(`host respondió ${respuesta.status}: ${detalle.slice(0, 160)}`);
     }
     return respuesta.json();
 }
