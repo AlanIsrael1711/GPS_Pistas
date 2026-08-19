@@ -10,7 +10,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "bridge": "node bridge/radarBridge.js",
-    "test": "node --check index.js && node --check rutas/rutas.js && node --check sockets/socketHandler.js && node --check radar/radarStore.js && node --check bridge/radarBridge.js && node --check js/orientationModel.js && node --check js/mapAeronaves.js && node --check js/selectionPolicy.js && node --check js/routeEngine.js && node --check js/main.js && node --check service-worker.js && node test/orientationModel.test.js && node test/routeEngine.test.js && node test/selectionPolicy.test.js && node test/radarStore.test.js && node test/project.test.js && node test/server.test.js && node test/bridgeE2E.test.js"
+    "test": "node --check index.js && node --check rutas/rutas.js && node --check sockets/socketHandler.js && node --check radar/radarStore.js && node --check bridge/radarBridge.js && node --check js/orientationModel.js && node --check js/mapAeronaves.js && node --check js/selectionPolicy.js && node --check js/routeEngine.js && node --check js/main.js && node --check service-worker.js && node test/orientationModel.test.js && node test/leafletRotateConvention.test.js && node test/routeEngine.test.js && node test/selectionPolicy.test.js && node test/radarStore.test.js && node test/project.test.js && node test/server.test.js && node test/bridgeE2E.test.js"
   },
   "dependencies": {
     "@turf/turf": "^7.3.5",

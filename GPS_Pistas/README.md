@@ -77,13 +77,16 @@ La posición y la orientación se calculan como datos independientes:
 
 - el punto azul queda anclado a la coordenada GPS;
 - el halo azul representa la precisión reportada por el GPS;
-- el cono usa `rumbo físico del teléfono - bearing del mapa`;
-- las aeronaves usan `track ADS-B - bearing del mapa` y nunca leen el
+- el cono usa `rumbo físico del teléfono + rotación visual del mapa`;
+- las aeronaves usan `track ADS-B + rotación visual del mapa` y nunca leen el
   giroscopio del usuario;
-- la brújula conserva el icono original y muestra el norte con `-bearing`.
+- la brújula conserva el icono original y sigue el norte con la convención
+  visual de `leaflet-rotate`.
 
+`leaflet-rotate` aplica `map.getBearing()` directamente como rotación visual de
+su `rotatePane`; no usa el mismo signo que el bearing de cámara de MapLibre.
 Por eso el giro manual con dos dedos no modifica el rumbo real ni se cancela
-cuando el teléfono gira físicamente. Ambos movimientos se combinan. Los
+cuando el teléfono gira físicamente: ambos movimientos se suman visualmente. Los
 sensores de orientación y la geolocalización requieren HTTPS en el móvil. En
 iPhone/iPad, el permiso de orientación se solicita al tocar el botón de GPS o
 la brújula, porque Safari exige que la solicitud provenga de un gesto.

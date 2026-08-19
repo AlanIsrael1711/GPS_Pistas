@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'gps-pistas-v8-orientacion-maps';
+const VERSION = 'gps-pistas-v9-rotacion-visual-leaflet';
 const CACHE_APP = `${VERSION}-app`;
 const CACHE_TILES = `${VERSION}-tiles`;
 const MAX_TILES = 120;
